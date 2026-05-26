@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Applications</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f5f5;
+    --fg: #1a1a1a;
+    --card: #fff;
+    --thead-bg: #f0f0f0;
+    --thead-fg: #555;
+    --border: #e0e0e0;
+    --row-border: #f0f0f0;
+    --row-hover: #fafafa;
+    --row-expanded: #f7f9ff;
+    --detail-border: #e0e8ff;
+    --toolbar-border: #ccc;
+    --field-label: #555;
+    --field-border: #d1d5db;
+    --detail-label: #888;
+    --skill-bg: #e8eaf6;
+    --skill-fg: #3949ab;
+    --btn-secondary-bg: #e5e7eb;
+    --btn-secondary-fg: #333;
+    --btn-export-bg: #fff;
+    --btn-export-border: #ccc;
+    --btn-export-fg: #333;
+    --btn-icon-hover: #e8e8e8;
+    --empty-fg: #888;
+    --dialog-border: #e5e7eb;
+    --shadow: rgba(0,0,0,.08);
+    --dialog-shadow: rgba(0,0,0,.18);
+    --theme-btn-bg: #e5e7eb;
+    --theme-btn-fg: #333;
+  }
+
+  [data-theme="dark"] {
+    --bg: #111827;
+    --fg: #e5e7eb;
+    --card: #1f2937;
+    --thead-bg: #374151;
+    --thead-fg: #9ca3af;
+    --border: #374151;
+    --row-border: #374151;
+    --row-hover: #273244;
+    --row-expanded: #1e3a5f;
+    --detail-border: #2d4a6e;
+    --toolbar-border: #4b5563;
+    --field-label: #9ca3af;
+    --field-border: #4b5563;
+    --detail-label: #6b7280;
+    --skill-bg: #1e3a5f;
+    --skill-fg: #93c5fd;
+    --btn-secondary-bg: #374151;
+    --btn-secondary-fg: #e5e7eb;
+    --btn-export-bg: #1f2937;
+    --btn-export-border: #4b5563;
+    --btn-export-fg: #e5e7eb;
+    --btn-icon-hover: #374151;
+    --empty-fg: #6b7280;
+    --dialog-border: #374151;
+    --shadow: rgba(0,0,0,.3);
+    --dialog-shadow: rgba(0,0,0,.5);
+    --theme-btn-bg: #374151;
+    --theme-btn-fg: #e5e7eb;
+  }
+
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    background: var(--bg);
+    color: var(--fg);
+    padding: 24px 16px;
+    transition: background .2s, color .2s;
+  }
+
+  .container { max-width: 960px; margin: 0 auto; }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  header h1 { font-size: 20px; font-weight: 700; }
+
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+
+  .toolbar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  .toolbar input, .toolbar select {
+    padding: 6px 10px;
+    border: 1px solid var(--toolbar-border);
+    border-radius: 6px;
+    font-size: 14px;
+    background: var(--card);
+    color: var(--fg);
+  }
+
+  .toolbar input { flex: 1; min-width: 160px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px var(--shadow);
+  }
+
+  thead th {
+    text-align: left;
+    padding: 10px 12px;
+    background: var(--thead-bg);
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--thead-fg);
+    border-bottom: 1px solid var(--border);
+  }
+
+  tbody tr { border-bottom: 1px solid var(--row-border); cursor: pointer; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--row-hover); }
+  tbody tr.expanded { background: var(--row-expanded); }
+
+  td { padding: 10px 12px; vertical-align: top; }
+
+  .detail-row td {
+    padding: 0;
+    cursor: default;
+    background: var(--row-expanded);
+  }
+
+  .detail-inner {
+    padding: 12px 16px 16px;
+    border-top: 1px solid var(--detail-border);
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px 24px;
+  }
+
+  .detail-inner .field label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--detail-label);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-bottom: 2px;
+  }
+
+  .skills-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .skill-tag {
+    background: var(--skill-bg);
+    color: var(--skill-fg);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .pill-open              { background: #e5e5e5; color: #555; }
+  .pill-applied           { background: #dbeafe; color: #1d4ed8; }
+  .pill-interview_done    { background: #ede9fe; color: #6d28d9; }
+  .pill-rejected          { background: #fee2e2; color: #dc2626; }
+  .pill-rejected_after_interview { background: #fce7f3; color: #9d174d; }
+  .pill-accepted          { background: #dcfce7; color: #15803d; }
+
+  [data-theme="dark"] .pill-open              { background: #374151; color: #9ca3af; }
+  [data-theme="dark"] .pill-applied           { background: #1e3a5f; color: #93c5fd; }
+  [data-theme="dark"] .pill-interview_done    { background: #2e1f5e; color: #c4b5fd; }
+  [data-theme="dark"] .pill-rejected          { background: #4c1d1d; color: #fca5a5; }
+  [data-theme="dark"] .pill-rejected_after_interview { background: #4c1d3a; color: #f9a8d4; }
+  [data-theme="dark"] .pill-accepted          { background: #14391f; color: #86efac; }
+
+  .actions { white-space: nowrap; }
+  .btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 15px;
+    line-height: 1;
+    opacity: .7;
+    transition: opacity .15s, background .15s;
+    color: var(--fg);
+  }
+  .btn-icon:hover { opacity: 1; background: var(--btn-icon-hover); }
+
+  .btn {
+    padding: 7px 14px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  .btn:hover { opacity: .85; }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-secondary { background: var(--btn-secondary-bg); color: var(--btn-secondary-fg); }
+  .btn-export { background: var(--btn-export-bg); border: 1px solid var(--btn-export-border); color: var(--btn-export-fg); }
+
+  .btn-theme {
+    background: var(--theme-btn-bg);
+    color: var(--theme-btn-fg);
+    border: none;
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  .btn-theme:hover { opacity: .8; }
+
+  .empty-state {
+    text-align: center;
+    padding: 48px;
+    color: var(--empty-fg);
+    font-size: 15px;
+    background: var(--card);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px var(--shadow);
+  }
+
+  dialog {
+    border: none;
+    border-radius: 10px;
+    padding: 0;
+    width: min(520px, 96vw);
+    box-shadow: 0 8px 40px var(--dialog-shadow);
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+    background: var(--card);
+    color: var(--fg);
+  }
+
+  dialog::backdrop { background: rgba(0,0,0,.4); }
+
+  .dialog-header {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--dialog-border);
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .dialog-body { padding: 16px 20px; display: grid; gap: 10px; }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--field-label);
+    margin-bottom: 4px;
+  }
+
+  .field input, .field select, .field textarea {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid var(--field-border);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    background: var(--card);
+    color: var(--fg);
+  }
+
+  .field textarea { resize: vertical; min-height: 60px; }
+
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37,99,235,.15);
+  }
+
+  .dialog-error {
+    background: #fee2e2;
+    color: #dc2626;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    display: none;
+  }
+
+  .dialog-footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--dialog-border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .settings-section { margin-bottom: 18px; }
+  .settings-section h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--detail-label);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: 10px;
+  }
+
+  .provider-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--row-border);
+  }
+  .provider-row:last-child { border-bottom: none; }
+  .provider-row label { flex: 1; font-weight: 600; cursor: pointer; }
+
+  .key-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+  }
+  .key-ok   { background: #dcfce7; color: #15803d; }
+  .key-miss { background: #fef9c3; color: #854d0e; }
+  .key-none { background: #f3f4f6; color: #6b7280; }
+  [data-theme="dark"] .key-ok   { background: #14391f; color: #86efac; }
+  [data-theme="dark"] .key-miss { background: #422006; color: #fde68a; }
+  [data-theme="dark"] .key-none { background: #374151; color: #9ca3af; }
+
+  .settings-toast { font-size: 13px; color: #15803d; font-weight: 600; display: none; }
+  [data-theme="dark"] .settings-toast { color: #86efac; }
+
+  .test-result {
+    margin-top: 12px;
+    background: var(--thead-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 12px;
+    white-space: pre-wrap;
+    font-family: monospace;
+    display: none;
+    max-height: 180px;
+    overflow-y: auto;
+    color: var(--fg);
+  }
+  .test-result.error { border-color: #fca5a5; background: #fff1f2; color: #dc2626; }
+  [data-theme="dark"] .test-result.error { background: #4c1d1d; color: #fca5a5; }
+
+  @media (max-width: 600px) {
+    .col-city, .col-actions-header { display: none; }
+    td.col-city, td.col-actions { display: none; }
+    .form-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Job Applications</h1>
+    <div class="header-actions">
+      <button class="btn btn-theme" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark theme">&#9790;</button>
+      <button class="btn btn-theme" onclick="openSettingsDialog()" title="AI &amp; Settings">&#9881;</button>
+      <button class="btn btn-export" onclick="exportCSV()">&#8659; CSV</button>
+      <button class="btn btn-secondary" onclick="openParseDialog()">&#128203; Paste &amp; parse</button>
+      <button class="btn btn-primary" onclick="openAddDialog()">+ Add job</button>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <input type="text" id="search" placeholder="Search position, company, city, skills…" oninput="render()">
+    <select id="statusFilter" onchange="render()">
+      <option value="">All statuses</option>
+      <option value="open">Open</option>
+      <option value="applied">Applied</option>
+      <option value="interview_done">Interview done</option>
+      <option value="rejected">Rejected</option>
+      <option value="rejected_after_interview">Rejected after interview</option>
+      <option value="accepted">Accepted</option>
+    </select>
+  </div>
+
+  <div id="tableContainer"></div>
+</div>
+
+<dialog id="jobDialog">
+  <div class="dialog-header" id="dialogTitle">Add Job</div>
+  <div class="dialog-body">
+    <div class="dialog-error" id="dialogError"></div>
+    <div class="form-row">
+      <div class="field">
+        <label>Position *</label>
+        <input type="text" id="f-position">
+      </div>
+      <div class="field">
+        <label>Company *</label>
+        <input type="text" id="f-company">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label>Date Applied *</label>
+        <input type="date" id="f-date_applied">
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select id="f-status">
+          <option value="open">Open</option>
+          <option value="applied">Applied</option>
+          <option value="interview_done">Interview done</option>
+          <option value="rejected">Rejected</option>
+          <option value="rejected_after_interview">Rejected after interview</option>
+          <option value="accepted">Accepted</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Description</label>
+      <textarea id="f-description"></textarea>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label>Address</label>
+        <input type="text" id="f-address">
+      </div>
+      <div class="field">
+        <label>City</label>
+        <input type="text" id="f-city">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label>HR Email</label>
+        <input type="text" id="f-hr_email">
+      </div>
+      <div class="field">
+        <label>HR Phone</label>
+        <input type="text" id="f-hr_phone">
+      </div>
+    </div>
+    <div class="field">
+      <label>Skills (comma-separated)</label>
+      <input type="text" id="f-skills" placeholder="e.g. Python, FastAPI, PostgreSQL">
+    </div>
+  </div>
+  <div class="dialog-footer">
+    <button class="btn btn-secondary" onclick="closeDialog()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveJob()">Save</button>
+  </div>
+</dialog>
+
+<dialog id="settingsDialog">
+  <div class="dialog-header" style="display:flex;align-items:center;justify-content:space-between;">
+    <span>Settings</span>
+    <button class="btn-icon" onclick="document.getElementById('settingsDialog').close()" style="font-size:18px;opacity:.6">&#215;</button>
+  </div>
+  <div class="dialog-body" style="gap:0">
+
+    <div class="settings-section">
+      <h3>Parser provider</h3>
+      <div id="settingsProviderList">Loading…</div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Model</h3>
+      <div class="field" style="margin-bottom:0">
+        <select id="settingsModelSelect" onchange="onSettingsModelInput()" style="width:100%;padding:7px 10px;border:1px solid var(--field-border);border-radius:6px;font-size:14px;font-family:inherit;background:var(--card);color:var(--fg)"><option>Loading…</option></select>
+        <input type="text" id="settingsModelText" placeholder="Type a model ID…" style="display:none;width:100%;padding:7px 10px;border:1px solid var(--field-border);border-radius:6px;font-size:14px;font-family:inherit;background:var(--card);color:var(--fg)" oninput="onSettingsModelInput()">
+        <div id="settingsModelError" style="font-size:12px;color:#dc2626;margin-top:4px;display:none"></div>
+      </div>
+    </div>
+
+  </div>
+  <div class="dialog-footer" style="justify-content:space-between;align-items:center">
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-secondary" onclick="testSettingsParse()">Test parse</button>
+      <span class="settings-toast" id="settingsToast">Saved!</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary" onclick="document.getElementById('settingsDialog').close()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSettingsDialog()">Save</button>
+    </div>
+  </div>
+  <pre class="test-result" id="settingsTestResult" style="margin:0 20px 16px"></pre>
+</dialog>
+
+<dialog id="parseDialog">
+  <div class="dialog-header">Paste &amp; Parse</div>
+  <div class="dialog-body">
+    <div class="dialog-error" id="parseError"></div>
+    <div id="parseProviderInfo" style="font-size:13px;color:#555;margin-bottom:4px"></div>
+    <div class="field">
+      <label>Job posting text</label>
+      <textarea id="parseText" style="min-height:160px" placeholder="Paste the full job posting here…"></textarea>
+    </div>
+  </div>
+  <div class="dialog-footer">
+    <button class="btn btn-secondary" onclick="document.getElementById('parseDialog').close()">Cancel</button>
+    <button class="btn btn-primary" id="parseBtn" onclick="runParse()">Parse</button>
+  </div>
+</dialog>
+
+<script>
+  (function() {
+    const saved = localStorage.getItem('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', saved);
+  })();
+
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+    document.getElementById('themeToggle').textContent = next === 'dark' ? '☀' : '☾';
+  }
+
+  let jobs = [];
+  let editingId = null;
+  let expandedId = null;
+
+  const STATUS_LABELS = {
+    open: 'Open',
+    applied: 'Applied',
+    interview_done: 'Interview done',
+    rejected: 'Rejected',
+    rejected_after_interview: 'Rejected after interview',
+    accepted: 'Accepted',
+  };
+
+  async function fetchJobs() {
+    const res = await fetch('/api/jobs');
+    jobs = await res.json();
+    render();
+  }
+
+  function filtered() {
+    const q = document.getElementById('search').value.toLowerCase();
+    const s = document.getElementById('statusFilter').value;
+    return jobs.filter(j => {
+      const matchStatus = !s || j.status === s;
+      const matchText = !q || [j.position, j.company, j.city, j.skills].some(f => (f || '').toLowerCase().includes(q));
+      return matchStatus && matchText;
+    });
+  }
+
+  function pill(status) {
+    return `<span class="pill pill-${status}">${STATUS_LABELS[status] || status}</span>`;
+  }
+
+  function skillTags(skills) {
+    if (!skills) return '';
+    return skills.split(',').filter(s => s.trim()).map(s =>
+      `<span class="skill-tag">${s.trim()}</span>`
+    ).join('');
+  }
+
+  function render() {
+    const list = filtered();
+    const container = document.getElementById('tableContainer');
+
+    if (list.length === 0) {
+      container.innerHTML = `<div class="empty-state">${
+        jobs.length === 0
+          ? 'No applications yet. Click <strong>+ Add job</strong> to start.'
+          : 'No jobs match your filters.'
+      }</div>`;
+      return;
+    }
+
+    const rows = list.map(j => {
+      const isExpanded = j.id === expandedId;
+      const mainRow = `
+        <tr class="${isExpanded ? 'expanded' : ''}" onclick="toggleExpand(${j.id}, event)">
+          <td>${j.date_applied}</td>
+          <td>${esc(j.position)}</td>
+          <td>${esc(j.company)}</td>
+          <td class="col-city">${esc(j.city)}</td>
+          <td>${pill(j.status)}</td>
+          <td class="col-actions actions" onclick="event.stopPropagation()">
+            <button class="btn-icon" title="Edit" onclick="openEditDialog(${j.id})">&#9998;</button>
+            <button class="btn-icon" title="Delete" onclick="deleteJob(${j.id})">&#128465;</button>
+          </td>
+        </tr>`;
+
+      if (!isExpanded) return mainRow;
+
+      const detailRow = `
+        <tr class="detail-row">
+          <td colspan="6">
+            <div class="detail-inner">
+              <div class="field"><label>Description</label><span>${esc(j.description) || '—'}</span></div>
+              <div class="field"><label>Address</label><span>${esc(j.address) || '—'}</span></div>
+              <div class="field"><label>City</label><span>${esc(j.city) || '—'}</span></div>
+              <div class="field"><label>HR Email</label><span>${esc(j.hr_email) || '—'}</span></div>
+              <div class="field"><label>HR Phone</label><span>${esc(j.hr_phone) || '—'}</span></div>
+              <div class="field"><label>Skills</label><div class="skills-list">${skillTags(j.skills) || '—'}</div></div>
+              <div class="field"><label>Created</label><span>${j.created_at}</span></div>
+              <div class="field"><label>Updated</label><span>${j.updated_at}</span></div>
+            </div>
+          </td>
+        </tr>`;
+
+      return mainRow + detailRow;
+    }).join('');
+
+    container.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Date applied</th>
+            <th>Position</th>
+            <th>Company</th>
+            <th class="col-city col-actions-header">City</th>
+            <th>Status</th>
+            <th class="col-actions-header">Actions</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  function toggleExpand(id, e) {
+    expandedId = expandedId === id ? null : id;
+    render();
+  }
+
+  function esc(str) {
+    return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function today() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function openAddDialog() {
+    editingId = null;
+    document.getElementById('dialogTitle').textContent = 'Add Job';
+    document.getElementById('f-position').value = '';
+    document.getElementById('f-company').value = '';
+    document.getElementById('f-date_applied').value = today();
+    document.getElementById('f-status').value = 'open';
+    document.getElementById('f-description').value = '';
+    document.getElementById('f-address').value = '';
+    document.getElementById('f-city').value = '';
+    document.getElementById('f-hr_email').value = '';
+    document.getElementById('f-hr_phone').value = '';
+    document.getElementById('f-skills').value = '';
+    hideError();
+    document.getElementById('jobDialog').showModal();
+  }
+
+  function openEditDialog(id) {
+    const j = jobs.find(x => x.id === id);
+    if (!j) return;
+    editingId = id;
+    document.getElementById('dialogTitle').textContent = 'Edit Job';
+    document.getElementById('f-position').value = j.position;
+    document.getElementById('f-company').value = j.company;
+    document.getElementById('f-date_applied').value = j.date_applied;
+    document.getElementById('f-status').value = j.status;
+    document.getElementById('f-description').value = j.description;
+    document.getElementById('f-address').value = j.address;
+    document.getElementById('f-city').value = j.city;
+    document.getElementById('f-hr_email').value = j.hr_email;
+    document.getElementById('f-hr_phone').value = j.hr_phone;
+    document.getElementById('f-skills').value = j.skills;
+    hideError();
+    document.getElementById('jobDialog').showModal();
+  }
+
+  function closeDialog() {
+    document.getElementById('jobDialog').close();
+  }
+
+  function hideError() {
+    const el = document.getElementById('dialogError');
+    el.style.display = 'none';
+    el.textContent = '';
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('dialogError');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  async function saveJob() {
+    hideError();
+    const payload = {
+      position: document.getElementById('f-position').value.trim(),
+      company: document.getElementById('f-company').value.trim(),
+      date_applied: document.getElementById('f-date_applied').value,
+      status: document.getElementById('f-status').value,
+      description: document.getElementById('f-description').value.trim(),
+      address: document.getElementById('f-address').value.trim(),
+      city: document.getElementById('f-city').value.trim(),
+      hr_email: document.getElementById('f-hr_email').value.trim(),
+      hr_phone: document.getElementById('f-hr_phone').value.trim(),
+      skills: document.getElementById('f-skills').value.trim(),
+    };
+
+    const url = editingId ? `/api/jobs/${editingId}` : '/api/jobs';
+    const method = editingId ? 'PUT' : 'POST';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        const detail = err.detail;
+        const msg = Array.isArray(detail)
+          ? detail.map(d => d.msg).join('; ')
+          : (detail || 'Unknown error');
+        showError(msg);
+        return;
+      }
+    } catch (e) {
+      showError('Network error: ' + e.message);
+      return;
+    }
+
+    closeDialog();
+    await fetchJobs();
+  }
+
+  async function deleteJob(id) {
+    if (!confirm('Delete this application?')) return;
+    await fetch(`/api/jobs/${id}`, { method: 'DELETE' });
+    if (expandedId === id) expandedId = null;
+    await fetchJobs();
+  }
+
+  function exportCSV() {
+    const list = filtered();
+    const headers = ['id','position','company','date_applied','status','city','address','hr_email','hr_phone','skills','description','created_at','updated_at'];
+    const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [headers.join(','), ...list.map(j => headers.map(h => escape(j[h])).join(','))];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `job-applications-${today()}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  async function openParseDialog() {
+    document.getElementById('parseText').value = '';
+    const err = document.getElementById('parseError');
+    err.style.display = 'none';
+    err.textContent = '';
+    const btn = document.getElementById('parseBtn');
+    btn.disabled = false;
+    btn.textContent = 'Parse';
+
+    const info = document.getElementById('parseProviderInfo');
+    info.textContent = 'Loading provider…';
+    try {
+      const res = await fetch('/api/settings');
+      const s = await res.json();
+      const providerLabel = { ollama: 'Ollama', anthropic: 'Anthropic', openai: 'OpenAI' }[s.provider] || s.provider;
+      info.innerHTML = `Using: <strong>${providerLabel} / ${esc(s.model)}</strong> &nbsp;<a href="#" style="color:#2563eb;font-size:12px" onclick="document.getElementById('parseDialog').close();openSettingsDialog()">Change…</a>`;
+    } catch (_) {
+      info.textContent = '';
+    }
+
+    document.getElementById('parseDialog').showModal();
+  }
+
+  async function runParse() {
+    const text = document.getElementById('parseText').value.trim();
+    const err = document.getElementById('parseError');
+    if (!text) {
+      err.textContent = 'Please paste a job posting first.';
+      err.style.display = 'block';
+      return;
+    }
+    const btn = document.getElementById('parseBtn');
+    btn.disabled = true;
+    btn.textContent = 'Parsing…';
+    err.style.display = 'none';
+
+    try {
+      const res = await fetch('/api/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        err.textContent = data.error + (data.hint ? ' — ' + data.hint : '');
+        err.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Parse';
+        return;
+      }
+      document.getElementById('parseDialog').close();
+      openAddDialogPrefilled(data);
+    } catch (e) {
+      err.textContent = 'Network error: ' + e.message;
+      err.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Parse';
+    }
+  }
+
+  function openAddDialogPrefilled(data) {
+    editingId = null;
+    document.getElementById('dialogTitle').textContent = 'Add Job';
+    document.getElementById('f-position').value = data.position || '';
+    document.getElementById('f-company').value = data.company || '';
+    document.getElementById('f-date_applied').value = data.date_applied || today();
+    document.getElementById('f-status').value = data.status || 'open';
+    document.getElementById('f-description').value = data.description || '';
+    document.getElementById('f-address').value = data.address || '';
+    document.getElementById('f-city').value = data.city || '';
+    document.getElementById('f-hr_email').value = data.hr_email || '';
+    document.getElementById('f-hr_phone').value = data.hr_phone || '';
+    document.getElementById('f-skills').value = data.skills || '';
+    hideError();
+    document.getElementById('jobDialog').showModal();
+  }
+
+  // ── Settings dialog ─────────────────────────────────────────────────────
+  let settingsProvider = 'ollama';
+  let settingsModel = '';
+
+  const PROVIDER_LABELS = { ollama: 'Ollama', anthropic: 'Anthropic Claude', openai: 'OpenAI' };
+  const KEY_HINTS = { anthropic: 'ANTHROPIC_API_KEY', openai: 'OPENAI_API_KEY' };
+
+  async function openSettingsDialog() {
+    document.getElementById('settingsProviderList').textContent = 'Loading…';
+    document.getElementById('settingsModelSelect').innerHTML = '<option>Loading…</option>';
+    document.getElementById('settingsTestResult').style.display = 'none';
+    document.getElementById('settingsToast').style.display = 'none';
+    document.getElementById('settingsDialog').showModal();
+
+    const res = await fetch('/api/settings');
+    const s = await res.json();
+    settingsProvider = s.provider;
+    settingsModel = s.model;
+    renderSettingsProviders(s.providers, s.key_status);
+    await loadSettingsModels(settingsProvider, settingsModel);
+  }
+
+  function renderSettingsProviders(providers, keyStatus) {
+    const list = document.getElementById('settingsProviderList');
+    list.innerHTML = providers.map(p => {
+      const ks = keyStatus[p];
+      let badge = '';
+      if (ks === null) {
+        badge = '<span class="key-badge key-none">No key needed</span>';
+      } else if (ks) {
+        badge = '<span class="key-badge key-ok">&#10003; Key configured</span>';
+      } else {
+        badge = `<span class="key-badge key-miss">&#9888; Set ${KEY_HINTS[p]} in .env</span>`;
+      }
+      const checked = p === settingsProvider ? 'checked' : '';
+      return `<div class="provider-row">
+        <input type="radio" name="settingsProvider" id="sp-${p}" value="${p}" ${checked} onchange="onSettingsProviderChange('${p}')">
+        <label for="sp-${p}">${PROVIDER_LABELS[p] || p}</label>
+        ${badge}
+      </div>`;
+    }).join('');
+  }
+
+  async function onSettingsProviderChange(provider) {
+    settingsProvider = provider;
+    await loadSettingsModels(provider, '');
+  }
+
+  async function loadSettingsModels(provider, selectedModel) {
+    const sel = document.getElementById('settingsModelSelect');
+    const txt = document.getElementById('settingsModelText');
+    const err = document.getElementById('settingsModelError');
+    sel.innerHTML = '<option disabled>Loading…</option>';
+    sel.disabled = true;
+    sel.style.display = '';
+    txt.style.display = 'none';
+    err.style.display = 'none';
+    try {
+      const res = await fetch(`/api/models?provider=${encodeURIComponent(provider)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error((data.error || 'Failed') + (data.hint ? ' — ' + data.hint : ''));
+      const models = data.models || [];
+      if (!models.length) throw new Error('No models found.');
+      sel.innerHTML = models.map(m =>
+        `<option value="${esc(m)}" ${m === selectedModel ? 'selected' : ''}>${esc(m)}</option>`
+      ).join('');
+      sel.disabled = false;
+      settingsModel = models.includes(selectedModel) ? selectedModel : models[0];
+    } catch (e) {
+      sel.style.display = 'none';
+      txt.style.display = '';
+      txt.value = selectedModel || '';
+      settingsModel = txt.value;
+      err.textContent = e.message;
+      err.style.display = 'block';
+    }
+  }
+
+  function onSettingsModelInput() {
+    const sel = document.getElementById('settingsModelSelect');
+    const txt = document.getElementById('settingsModelText');
+    settingsModel = txt.style.display !== 'none' ? txt.value.trim() : sel.value;
+  }
+
+  async function saveSettingsDialog() {
+    onSettingsModelInput();
+    if (!settingsModel) { alert('Please select or enter a model.'); return; }
+    const res = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: settingsProvider, model: settingsModel }),
+    });
+    if (res.ok) {
+      const toast = document.getElementById('settingsToast');
+      toast.style.display = 'inline';
+      setTimeout(() => { toast.style.display = 'none'; }, 2500);
+    } else {
+      const err = await res.json();
+      alert('Error: ' + (err.detail || 'Could not save settings'));
+    }
+  }
+
+  const TEST_POSTING = `Software Engineer – Backend\nCompany: Acme Corp\nLocation: Berlin, Germany\nAddress: Unter den Linden 10, 10117 Berlin\n\nWe are looking for a backend engineer.\n\nRequirements: Python, FastAPI, PostgreSQL, Docker\nContact: hr@acme.de | +49 30 12345678`;
+
+  async function testSettingsParse() {
+    await saveSettingsDialog();
+    const box = document.getElementById('settingsTestResult');
+    box.className = 'test-result';
+    box.style.display = 'block';
+    box.textContent = 'Parsing sample posting…';
+    try {
+      const res = await fetch('/api/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: TEST_POSTING }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        box.className = 'test-result error';
+        box.textContent = (data.error || 'Error') + (data.hint ? '\n' + data.hint : '');
+      } else {
+        box.textContent = JSON.stringify(data, null, 2);
+      }
+    } catch (e) {
+      box.className = 'test-result error';
+      box.textContent = 'Network error: ' + e.message;
+    }
+  }
+  // ────────────────────────────────────────────────────────────────────────
+
+  fetchJobs();
+
+  (function() {
+    const theme = document.documentElement.getAttribute('data-theme');
+    const btn = document.getElementById('themeToggle');
+    if (btn) btn.textContent = theme === 'dark' ? '☀' : '☾';
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings — Job Tracker</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    background: #f5f5f5;
+    color: #1a1a1a;
+    padding: 24px 16px;
+  }
+
+  .container { max-width: 560px; margin: 0 auto; }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  header h1 { font-size: 20px; font-weight: 700; }
+
+  a.back { font-size: 13px; color: #2563eb; text-decoration: none; }
+  a.back:hover { text-decoration: underline; }
+
+  .card {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+
+  .card h2 { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+
+  .provider-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .provider-row:last-child { border-bottom: none; }
+
+  .provider-row label {
+    flex: 1;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .key-badge {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+  }
+  .key-ok   { background: #dcfce7; color: #15803d; }
+  .key-miss { background: #fef9c3; color: #854d0e; }
+  .key-none { background: #f3f4f6; color: #6b7280; }
+
+  .field { margin-bottom: 12px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 4px;
+  }
+  .field select, .field input[type="text"] {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    background: #fff;
+  }
+  .field select:focus, .field input:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37,99,235,.15);
+  }
+
+  .model-error { font-size: 12px; color: #dc2626; margin-top: 4px; display: none; }
+
+  .btn {
+    padding: 7px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  .btn:hover { opacity: .85; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-primary   { background: #2563eb; color: #fff; }
+  .btn-secondary { background: #e5e7eb; color: #333; }
+
+  .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  .toast {
+    font-size: 13px;
+    color: #15803d;
+    font-weight: 600;
+    display: none;
+  }
+
+  .test-result {
+    margin-top: 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 13px;
+    white-space: pre-wrap;
+    font-family: monospace;
+    display: none;
+    max-height: 260px;
+    overflow-y: auto;
+  }
+  .test-result.error { border-color: #fca5a5; background: #fff1f2; color: #dc2626; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Settings</h1>
+    <a class="back" href="/">&#8592; Back to jobs</a>
+  </header>
+
+  <div class="card">
+    <h2>Parser provider</h2>
+    <div id="providerList">Loading…</div>
+  </div>
+
+  <div class="card">
+    <h2>Model</h2>
+    <div class="field">
+      <label id="modelLabel">Model</label>
+      <select id="modelSelect" onchange="onModelInput()"><option>Loading…</option></select>
+      <input type="text" id="modelText" placeholder="Type a model ID…" style="display:none" oninput="onModelInput()">
+      <div class="model-error" id="modelError"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="actions">
+      <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+      <button class="btn btn-secondary" onclick="testParse()">Test parse</button>
+      <span class="toast" id="toast">Saved!</span>
+    </div>
+    <pre class="test-result" id="testResult"></pre>
+  </div>
+</div>
+
+<script>
+  let currentProvider = 'ollama';
+  let currentModel = '';
+  let keyStatus = {};
+
+  const PROVIDER_LABELS = { ollama: 'Ollama', anthropic: 'Anthropic Claude', openai: 'OpenAI' };
+  const KEY_HINTS = {
+    ollama: null,
+    anthropic: 'ANTHROPIC_API_KEY',
+    openai: 'OPENAI_API_KEY',
+  };
+
+  async function init() {
+    const res = await fetch('/api/settings');
+    const s = await res.json();
+    currentProvider = s.provider;
+    currentModel = s.model;
+    keyStatus = s.key_status;
+    renderProviders(s.providers);
+    await loadModels(currentProvider, currentModel);
+  }
+
+  function renderProviders(providers) {
+    const list = document.getElementById('providerList');
+    list.innerHTML = providers.map(p => {
+      const ks = keyStatus[p];
+      let badge = '';
+      if (ks === null) {
+        badge = '<span class="key-badge key-none">— No key needed</span>';
+      } else if (ks) {
+        badge = '<span class="key-badge key-ok">&#10003; Key configured</span>';
+      } else {
+        badge = `<span class="key-badge key-miss">&#9888; Set ${KEY_HINTS[p]} in .env</span>`;
+      }
+      const checked = p === currentProvider ? 'checked' : '';
+      return `
+        <div class="provider-row">
+          <input type="radio" name="provider" id="p-${p}" value="${p}" ${checked} onchange="onProviderChange('${p}')">
+          <label for="p-${p}">${PROVIDER_LABELS[p] || p}</label>
+          ${badge}
+        </div>`;
+    }).join('');
+  }
+
+  async function onProviderChange(provider) {
+    currentProvider = provider;
+    await loadModels(provider, '');
+  }
+
+  async function loadModels(provider, selectedModel) {
+    const sel = document.getElementById('modelSelect');
+    const txt = document.getElementById('modelText');
+    const err = document.getElementById('modelError');
+
+    sel.innerHTML = '<option disabled>Loading…</option>';
+    sel.disabled = true;
+    sel.style.display = '';
+    txt.style.display = 'none';
+    err.style.display = 'none';
+
+    try {
+      const res = await fetch(`/api/models?provider=${encodeURIComponent(provider)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error((data.error || 'Failed to load models') + (data.hint ? ' — ' + data.hint : ''));
+      }
+      const models = data.models || [];
+      if (models.length === 0) {
+        throw new Error('No models found for this provider.');
+      }
+      sel.innerHTML = models.map(m =>
+        `<option value="${esc(m)}" ${m === selectedModel ? 'selected' : ''}>${esc(m)}</option>`
+      ).join('');
+      sel.disabled = false;
+      if (!selectedModel || !models.includes(selectedModel)) {
+        currentModel = models[0];
+      } else {
+        currentModel = selectedModel;
+      }
+    } catch (e) {
+      sel.style.display = 'none';
+      txt.style.display = '';
+      txt.value = selectedModel || '';
+      currentModel = txt.value;
+      err.textContent = e.message;
+      err.style.display = 'block';
+    }
+  }
+
+  function onModelInput() {
+    const sel = document.getElementById('modelSelect');
+    const txt = document.getElementById('modelText');
+    if (txt.style.display !== 'none') {
+      currentModel = txt.value.trim();
+    } else {
+      currentModel = sel.value;
+    }
+  }
+
+  async function saveSettings() {
+    onModelInput();
+    if (!currentModel) {
+      alert('Please select or enter a model.');
+      return;
+    }
+    const res = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: currentProvider, model: currentModel }),
+    });
+    if (res.ok) {
+      const toast = document.getElementById('toast');
+      toast.style.display = 'inline';
+      setTimeout(() => { toast.style.display = 'none'; }, 2500);
+    } else {
+      const err = await res.json();
+      alert('Error: ' + (err.detail || 'Could not save settings'));
+    }
+  }
+
+  const TEST_POSTING = `Software Engineer – Backend
+Company: Acme Corp
+Location: Berlin, Germany
+Address: Unter den Linden 10, 10117 Berlin
+
+We are looking for a backend engineer to build scalable APIs using Python and FastAPI.
+
+Requirements: Python, FastAPI, PostgreSQL, Docker, Redis
+Contact: hr@acme.de | +49 30 12345678`;
+
+  async function testParse() {
+    onModelInput();
+    const box = document.getElementById('testResult');
+    box.className = 'test-result';
+    box.style.display = 'block';
+    box.textContent = 'Parsing sample posting…';
+
+    await saveSettings();
+
+    try {
+      const res = await fetch('/api/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: TEST_POSTING }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        box.className = 'test-result error';
+        box.textContent = (data.error || 'Error') + (data.hint ? '\n' + data.hint : '');
+      } else {
+        box.textContent = JSON.stringify(data, null, 2);
+      }
+    } catch (e) {
+      box.className = 'test-result error';
+      box.textContent = 'Network error: ' + e.message;
+    }
+  }
+
+  function esc(str) {
+    return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  init();
+</script>
+</body>
+</html>
