@@ -1,0 +1,626 @@
+import json
+import sqlite3
+from typing import Optional
+from cryptography.fernet import Fernet
+
+DB_PATH = "jobs.db"
+
+_conn: Optional[sqlite3.Connection] = None
+
+
+def get_conn() -> sqlite3.Connection:
+    global _conn
+    if _conn is None:
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        _init_schema(conn)
+        _conn = conn  # only assign after successful init so failed inits retry
+    return _conn
+
+
+def _init_schema(conn: sqlite3.Connection) -> None:
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS jobs (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            position      TEXT    NOT NULL,
+            company       TEXT    NOT NULL,
+            description   TEXT    DEFAULT '',
+            date_applied  TEXT    NOT NULL,
+            status        TEXT    NOT NULL DEFAULT 'open',
+            address       TEXT    DEFAULT '',
+            city          TEXT    DEFAULT '',
+            hr_email      TEXT    DEFAULT '',
+            hr_phone      TEXT    DEFAULT '',
+            skills        TEXT    DEFAULT '',
+            source_url    TEXT    DEFAULT '',
+            source_text   TEXT    DEFAULT '',
+            created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+            updated_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+            CHECK (status IN ('open','applied','interview_done','rejected','rejected_after_interview','accepted'))
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            id        INTEGER PRIMARY KEY CHECK (id = 1),
+            provider  TEXT NOT NULL DEFAULT 'ollama',
+            model     TEXT NOT NULL DEFAULT 'llama3.1:8b'
+        )
+    """)
+    conn.execute(
+        "INSERT OR IGNORE INTO settings (id, provider, model) VALUES (1, 'ollama', 'llama3.1:8b')"
+    )
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS documents (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename    TEXT    NOT NULL,
+            doc_type    TEXT    NOT NULL DEFAULT 'other',
+            file_path   TEXT    NOT NULL,
+            file_hash   TEXT    NOT NULL UNIQUE,
+            file_size   INTEGER NOT NULL DEFAULT 0,
+            uploaded_at TEXT    NOT NULL DEFAULT (datetime('now')),
+            notes       TEXT    DEFAULT ''
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS job_documents (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id      INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+            document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE RESTRICT,
+            attached_at TEXT    NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(job_id, document_id)
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS email_accounts (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            label        TEXT    NOT NULL,
+            imap_host    TEXT    NOT NULL,
+            imap_port    INTEGER NOT NULL DEFAULT 993,
+            username     TEXT    NOT NULL,
+            password_enc TEXT    NOT NULL DEFAULT '',
+            last_sync_at TEXT,
+            active       INTEGER NOT NULL DEFAULT 1
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS email_messages (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id     INTEGER NOT NULL REFERENCES email_accounts(id) ON DELETE CASCADE,
+            uid            TEXT    NOT NULL,
+            subject        TEXT    DEFAULT '',
+            sender         TEXT    DEFAULT '',
+            received_at    TEXT    NOT NULL,
+            body_text      TEXT    DEFAULT '',
+            relevance      TEXT    NOT NULL DEFAULT 'pending',
+            processed_at   TEXT,
+            linked_job_id  INTEGER REFERENCES jobs(id),
+            llm_status     TEXT,
+            llm_raw        TEXT,
+            UNIQUE(account_id, uid)
+        )
+    """)
+    _migrate(conn)
+    conn.commit()
+
+
+_DEFAULT_EMAIL_KEYWORDS = json.dumps([
+    "application", "interview", "offer", "reject", "congratulations",
+    "unfortunately", "position", "role", "hiring", "thank you for applying",
+    "next steps", "assessment", "onboarding", "move forward",
+])
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)")}
+    for col in ("source_url", "source_text", "whatsapp", "telegram", "hours_per_week", "languages", "source_email_id"):
+        if col not in cols:
+            conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT DEFAULT ''")
+
+    settings_cols = {row["name"] for row in conn.execute("PRAGMA table_info(settings)")}
+    for col in ("email_ollama_model", "email_sync_interval", "email_keywords", "fernet_key", "email_provider"):
+        if col not in settings_cols:
+            conn.execute(f"ALTER TABLE settings ADD COLUMN {col} TEXT")
+
+
+def _row_to_dict(row: sqlite3.Row) -> dict:
+    return dict(row)
+
+
+def list_jobs() -> list[dict]:
+    conn = get_conn()
+    rows = conn.execute("""
+        SELECT j.*,
+               (SELECT COUNT(*) FROM job_documents WHERE job_id = j.id) AS doc_count
+        FROM jobs j
+        ORDER BY j.date_applied DESC
+    """).fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
+def get_job(job_id: int) -> Optional[dict]:
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+    return _row_to_dict(row) if row else None
+
+
+def create_job(data: dict) -> dict:
+    conn = get_conn()
+    skills = ",".join(s.strip() for s in data.get("skills", "").split(",") if s.strip())
+    cursor = conn.execute(
+        """
+        INSERT INTO jobs (position, company, description, date_applied, status,
+                          address, city, hr_email, hr_phone, skills,
+                          whatsapp, telegram, hours_per_week, languages,
+                          source_url, source_text)
+        VALUES (:position, :company, :description, :date_applied, :status,
+                :address, :city, :hr_email, :hr_phone, :skills,
+                :whatsapp, :telegram, :hours_per_week, :languages,
+                :source_url, :source_text)
+        """,
+        {**data, "skills": skills,
+         "whatsapp": data.get("whatsapp", ""),
+         "telegram": data.get("telegram", ""),
+         "hours_per_week": data.get("hours_per_week", ""),
+         "languages": data.get("languages", ""),
+         "source_url": data.get("source_url", ""),
+         "source_text": data.get("source_text", "")},
+    )
+    conn.commit()
+    return get_job(cursor.lastrowid)
+
+
+def update_job(job_id: int, data: dict) -> Optional[dict]:
+    conn = get_conn()
+    skills = ",".join(s.strip() for s in data.get("skills", "").split(",") if s.strip())
+    conn.execute(
+        """
+        UPDATE jobs
+        SET position = :position,
+            company = :company,
+            description = :description,
+            date_applied = :date_applied,
+            status = :status,
+            address = :address,
+            city = :city,
+            hr_email = :hr_email,
+            hr_phone = :hr_phone,
+            skills = :skills,
+            whatsapp = :whatsapp,
+            telegram = :telegram,
+            hours_per_week = :hours_per_week,
+            languages = :languages,
+            source_url = :source_url,
+            source_text = :source_text,
+            updated_at = datetime('now')
+        WHERE id = :id
+        """,
+        {**data, "skills": skills,
+         "whatsapp": data.get("whatsapp", ""),
+         "telegram": data.get("telegram", ""),
+         "hours_per_week": data.get("hours_per_week", ""),
+         "languages": data.get("languages", ""),
+         "source_url": data.get("source_url", ""),
+         "source_text": data.get("source_text", ""),
+         "id": job_id},
+    )
+    conn.commit()
+    return get_job(job_id)
+
+
+def update_parsed_fields(job_id: int, parsed: dict) -> Optional[dict]:
+    """Update only the parser-produced fields; preserve date_applied, status, id, created_at."""
+    conn = get_conn()
+    skills = ",".join(s.strip() for s in parsed.get("skills", "").split(",") if s.strip())
+    conn.execute(
+        """
+        UPDATE jobs
+        SET position = :position,
+            company = :company,
+            description = :description,
+            address = :address,
+            city = :city,
+            hr_email = :hr_email,
+            hr_phone = :hr_phone,
+            skills = :skills,
+            whatsapp = :whatsapp,
+            telegram = :telegram,
+            hours_per_week = :hours_per_week,
+            languages = :languages,
+            source_url = CASE WHEN :source_url != '' THEN :source_url ELSE source_url END,
+            source_text = CASE WHEN :source_text != '' THEN :source_text ELSE source_text END,
+            updated_at = datetime('now')
+        WHERE id = :id
+        """,
+        {
+            "position": parsed.get("position", ""),
+            "company": parsed.get("company", ""),
+            "description": parsed.get("description", ""),
+            "address": parsed.get("address", ""),
+            "city": parsed.get("city", ""),
+            "hr_email": parsed.get("hr_email", ""),
+            "hr_phone": parsed.get("hr_phone", ""),
+            "skills": skills,
+            "whatsapp": parsed.get("whatsapp", ""),
+            "telegram": parsed.get("telegram", ""),
+            "hours_per_week": parsed.get("hours_per_week", ""),
+            "languages": parsed.get("languages", ""),
+            "source_url": parsed.get("source_url", ""),
+            "source_text": parsed.get("source_text", ""),
+            "id": job_id,
+        },
+    )
+    conn.commit()
+    return get_job(job_id)
+
+
+def delete_job(job_id: int) -> bool:
+    conn = get_conn()
+    cursor = conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+def update_job_status(job_id: int, status: str) -> None:
+    conn = get_conn()
+    conn.execute(
+        "UPDATE jobs SET status = ?, updated_at = datetime('now') WHERE id = ?",
+        (status, job_id),
+    )
+    conn.commit()
+
+
+# ── Documents ────────────────────────────────────────────────────────────────
+
+def get_document(doc_id: int) -> Optional[dict]:
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM documents WHERE id = ?", (doc_id,)).fetchone()
+    return _row_to_dict(row) if row else None
+
+
+def get_document_by_hash(file_hash: str) -> Optional[dict]:
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM documents WHERE file_hash = ?", (file_hash,)).fetchone()
+    return _row_to_dict(row) if row else None
+
+
+def list_documents(job_id: Optional[int] = None) -> list[dict]:
+    conn = get_conn()
+    if job_id is not None:
+        rows = conn.execute("""
+            SELECT d.*, jd.attached_at,
+                   (SELECT COUNT(*) FROM job_documents WHERE document_id = d.id) AS usage_count
+            FROM documents d
+            JOIN job_documents jd ON jd.document_id = d.id
+            WHERE jd.job_id = ?
+            ORDER BY jd.attached_at DESC
+        """, (job_id,)).fetchall()
+    else:
+        rows = conn.execute("""
+            SELECT d.*,
+                   (SELECT COUNT(*) FROM job_documents WHERE document_id = d.id) AS usage_count
+            FROM documents d
+            ORDER BY d.uploaded_at DESC
+        """).fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
+def create_document(data: dict) -> dict:
+    conn = get_conn()
+    cursor = conn.execute(
+        """INSERT INTO documents (filename, doc_type, file_path, file_hash, file_size, notes)
+           VALUES (:filename, :doc_type, :file_path, :file_hash, :file_size, :notes)""",
+        {
+            "filename": data["filename"],
+            "doc_type": data.get("doc_type", "other"),
+            "file_path": data["file_path"],
+            "file_hash": data["file_hash"],
+            "file_size": data.get("file_size", 0),
+            "notes": data.get("notes", ""),
+        },
+    )
+    conn.commit()
+    return get_document(cursor.lastrowid)
+
+
+def delete_document(doc_id: int) -> bool:
+    conn = get_conn()
+    cursor = conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+def count_job_documents(doc_id: int) -> int:
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT COUNT(*) AS cnt FROM job_documents WHERE document_id = ?", (doc_id,)
+    ).fetchone()
+    return row["cnt"] if row else 0
+
+
+def get_jobs_for_document(doc_id: int) -> list[dict]:
+    conn = get_conn()
+    rows = conn.execute("""
+        SELECT j.id, j.position, j.company FROM jobs j
+        JOIN job_documents jd ON jd.job_id = j.id
+        WHERE jd.document_id = ?
+    """, (doc_id,)).fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
+def get_job_documents(job_id: int) -> list[dict]:
+    return list_documents(job_id=job_id)
+
+
+def attach_document_to_job(job_id: int, document_id: int) -> dict:
+    conn = get_conn()
+    conn.execute(
+        "INSERT OR IGNORE INTO job_documents (job_id, document_id) VALUES (?, ?)",
+        (job_id, document_id),
+    )
+    conn.commit()
+    row = conn.execute(
+        "SELECT * FROM job_documents WHERE job_id = ? AND document_id = ?",
+        (job_id, document_id),
+    ).fetchone()
+    return _row_to_dict(row)
+
+
+def detach_document_from_job(job_id: int, document_id: int) -> bool:
+    conn = get_conn()
+    cursor = conn.execute(
+        "DELETE FROM job_documents WHERE job_id = ? AND document_id = ?",
+        (job_id, document_id),
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+def get_job_doc_count(job_id: int) -> int:
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT COUNT(*) AS cnt FROM job_documents WHERE job_id = ?", (job_id,)
+    ).fetchone()
+    return row["cnt"] if row else 0
+
+
+# ── Email Accounts ────────────────────────────────────────────────────────────
+
+def list_email_accounts(active_only: bool = False) -> list[dict]:
+    conn = get_conn()
+    if active_only:
+        rows = conn.execute(
+            "SELECT * FROM email_accounts WHERE active = 1 ORDER BY id"
+        ).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM email_accounts ORDER BY id").fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
+def get_email_account(account_id: int) -> Optional[dict]:
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM email_accounts WHERE id = ?", (account_id,)).fetchone()
+    return _row_to_dict(row) if row else None
+
+
+def create_email_account(data: dict) -> dict:
+    conn = get_conn()
+    cursor = conn.execute(
+        """INSERT INTO email_accounts (label, imap_host, imap_port, username, password_enc, active)
+           VALUES (:label, :imap_host, :imap_port, :username, :password_enc, :active)""",
+        {
+            "label": data["label"],
+            "imap_host": data["imap_host"],
+            "imap_port": int(data.get("imap_port", 993)),
+            "username": data["username"],
+            "password_enc": data.get("password_enc", ""),
+            "active": int(data.get("active", 1)),
+        },
+    )
+    conn.commit()
+    return get_email_account(cursor.lastrowid)
+
+
+def update_email_account(account_id: int, data: dict) -> Optional[dict]:
+    conn = get_conn()
+    conn.execute(
+        """UPDATE email_accounts
+           SET label = :label, imap_host = :imap_host, imap_port = :imap_port,
+               username = :username, active = :active
+           WHERE id = :id""",
+        {
+            "label": data["label"],
+            "imap_host": data["imap_host"],
+            "imap_port": int(data.get("imap_port", 993)),
+            "username": data["username"],
+            "active": int(data.get("active", 1)),
+            "id": account_id,
+        },
+    )
+    conn.commit()
+    return get_email_account(account_id)
+
+
+def update_email_account_password(account_id: int, password_enc: str) -> None:
+    conn = get_conn()
+    conn.execute(
+        "UPDATE email_accounts SET password_enc = ? WHERE id = ?",
+        (password_enc, account_id),
+    )
+    conn.commit()
+
+
+def delete_email_account(account_id: int) -> bool:
+    conn = get_conn()
+    cursor = conn.execute("DELETE FROM email_accounts WHERE id = ?", (account_id,))
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+def update_email_account_sync_time(account_id: int) -> None:
+    conn = get_conn()
+    conn.execute(
+        "UPDATE email_accounts SET last_sync_at = datetime('now') WHERE id = ?",
+        (account_id,),
+    )
+    conn.commit()
+
+
+def reset_email_account_sync_time(account_id: int) -> None:
+    conn = get_conn()
+    conn.execute(
+        "UPDATE email_accounts SET last_sync_at = NULL WHERE id = ?",
+        (account_id,),
+    )
+    conn.commit()
+
+
+# ── Email Messages ────────────────────────────────────────────────────────────
+
+def list_email_messages(
+    relevance: Optional[str] = None,
+    account_id: Optional[int] = None,
+    job_id: Optional[int] = None,
+) -> list[dict]:
+    conn = get_conn()
+    where, params = [], []
+    if relevance:
+        where.append("relevance = ?")
+        params.append(relevance)
+    if account_id:
+        where.append("account_id = ?")
+        params.append(account_id)
+    if job_id is not None:
+        where.append("linked_job_id = ?")
+        params.append(job_id)
+    clause = ("WHERE " + " AND ".join(where)) if where else ""
+    rows = conn.execute(
+        f"SELECT * FROM email_messages {clause} ORDER BY received_at DESC",
+        params,
+    ).fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
+def get_email_message(msg_id: int) -> Optional[dict]:
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM email_messages WHERE id = ?", (msg_id,)).fetchone()
+    return _row_to_dict(row) if row else None
+
+
+def create_email_message(data: dict) -> dict:
+    conn = get_conn()
+    cursor = conn.execute(
+        """INSERT OR IGNORE INTO email_messages
+           (account_id, uid, subject, sender, received_at, body_text, relevance)
+           VALUES (:account_id, :uid, :subject, :sender, :received_at, :body_text, :relevance)""",
+        {
+            "account_id": data["account_id"],
+            "uid": data["uid"],
+            "subject": data.get("subject", ""),
+            "sender": data.get("sender", ""),
+            "received_at": data["received_at"],
+            "body_text": data.get("body_text", ""),
+            "relevance": data.get("relevance", "pending"),
+        },
+    )
+    conn.commit()
+    return get_email_message(cursor.lastrowid)
+
+
+def update_email_message(msg_id: int, data: dict) -> None:
+    conn = get_conn()
+    allowed = {"relevance", "processed_at", "linked_job_id", "llm_status", "llm_raw"}
+    sets = ", ".join(f"{k} = ?" for k in data if k in allowed)
+    vals = [v for k, v in data.items() if k in allowed]
+    if not sets:
+        return
+    conn.execute(f"UPDATE email_messages SET {sets} WHERE id = ?", vals + [msg_id])
+    conn.commit()
+
+
+def email_message_exists(account_id: int, uid: str) -> bool:
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT 1 FROM email_messages WHERE account_id = ? AND uid = ?",
+        (account_id, uid),
+    ).fetchone()
+    return row is not None
+
+
+def find_matching_job(company: str, position: str) -> Optional[dict]:
+    conn = get_conn()
+    company_lower = company.lower()
+    rows = conn.execute(
+        "SELECT * FROM jobs WHERE status NOT IN ('rejected','accepted') ORDER BY date_applied DESC"
+    ).fetchall()
+    candidates = [_row_to_dict(r) for r in rows]
+    for j in candidates:
+        if company_lower in (j.get("company") or "").lower():
+            return j
+    return None
+
+
+def get_email_sync_status() -> dict:
+    conn = get_conn()
+    total = conn.execute("SELECT COUNT(*) AS c FROM email_messages").fetchone()["c"]
+    pending = conn.execute(
+        "SELECT COUNT(*) AS c FROM email_messages WHERE relevance = 'pending'"
+    ).fetchone()["c"]
+    last_sync = conn.execute(
+        "SELECT MAX(last_sync_at) AS t FROM email_accounts WHERE active = 1"
+    ).fetchone()["t"]
+    return {"total": total, "pending": pending, "last_sync_at": last_sync}
+
+
+# ── Email Settings ────────────────────────────────────────────────────────────
+
+def get_email_settings() -> dict:
+    conn = get_conn()
+    # self-heal: if a migration didn't run yet (e.g. existing connection from
+    # before a schema change), apply it now rather than crashing
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(settings)")}
+    for col in ("email_ollama_model", "email_sync_interval", "email_keywords", "fernet_key", "email_provider"):
+        if col not in existing:
+            conn.execute(f"ALTER TABLE settings ADD COLUMN {col} TEXT")
+    conn.commit()
+    row = conn.execute(
+        "SELECT email_provider, email_ollama_model, email_sync_interval, email_keywords, fernet_key FROM settings WHERE id = 1"
+    ).fetchone()
+    if not row:
+        return {
+            "email_provider": "ollama",
+            "email_ollama_model": "llama3.2:3b",
+            "email_sync_interval": 60,
+            "email_keywords": json.loads(_DEFAULT_EMAIL_KEYWORDS),
+            "fernet_key": "",
+        }
+    return {
+        "email_provider": row["email_provider"] or "ollama",
+        "email_ollama_model": row["email_ollama_model"] or "llama3.2:3b",
+        "email_sync_interval": int(row["email_sync_interval"] or 60),
+        "email_keywords": json.loads(row["email_keywords"]) if row["email_keywords"] else json.loads(_DEFAULT_EMAIL_KEYWORDS),
+        "fernet_key": row["fernet_key"] or "",
+    }
+
+
+def update_email_settings(data: dict) -> dict:
+    conn = get_conn()
+    allowed = {"email_provider", "email_ollama_model", "email_sync_interval", "email_keywords", "fernet_key"}
+    sets = []
+    vals = []
+    for k, v in data.items():
+        if k in allowed:
+            sets.append(f"{k} = ?")
+            vals.append(json.dumps(v) if k == "email_keywords" else v)
+    if sets:
+        conn.execute(f"UPDATE settings SET {', '.join(sets)} WHERE id = 1", vals)
+        conn.commit()
+    return get_email_settings()
+
+
+def get_or_create_fernet_key() -> bytes:
+    s = get_email_settings()
+    key = s.get("fernet_key", "")
+    if not key:
+        key = Fernet.generate_key().decode()
+        update_email_settings({"fernet_key": key})
+    return key.encode() if isinstance(key, str) else key

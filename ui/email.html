@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email — Job Tracker</title>
+<link rel="stylesheet" href="/static/css/base.css">
+<link rel="stylesheet" href="/static/css/email.css">
+<script src="/static/js/theme.js"></script>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <h1>Email</h1>
+      <nav>
+        <a href="/">Jobs</a>
+        <a href="/documents">Docs</a>
+      </nav>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <button class="btn-theme" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">&#9790;</button>
+      <button class="btn btn-secondary" id="syncBtn" onclick="syncNow()">&#8635; Sync</button>
+      <button class="btn btn-secondary" onclick="openAccountsDialog()">&#9881; Accounts</button>
+    </div>
+  </header>
+
+  <div class="status-bar">
+    <span class="sync-info" id="syncInfo">Last sync: never</span>
+    <span id="pendingCount" style="font-size:13px;font-weight:600;color:#854d0e;"></span>
+    <button class="btn btn-primary btn-sm" id="processAllBtn" onclick="processAll()">&#9654; Process all pending</button>
+  </div>
+
+  <div class="privacy-notice">
+    &#9432; Emails are classified using the AI model configured in <a href="/settings" style="color:inherit">Settings</a>.
+  </div>
+
+  <div class="process-progress" id="processProgress">
+    <span class="spinner">&#9696;</span>
+    <span id="progressText">Processing…</span>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="searchInput" placeholder="Search subject or sender…" oninput="render()">
+    <select id="accountFilter" onchange="loadMessages()">
+      <option value="">All accounts</option>
+    </select>
+  </div>
+  <div class="filter-pills" id="filterPills" style="margin-bottom:12px">
+    <button class="filter-pill active" data-filter="" onclick="setFilter('')">All</button>
+    <button class="filter-pill" data-filter="relevant" onclick="setFilter('relevant')">&#9733; Job related</button>
+    <button class="filter-pill" data-filter="pending" onclick="setFilter('pending')">Pending</button>
+    <button class="filter-pill" data-filter="irrelevant" onclick="setFilter('irrelevant')">Irrelevant</button>
+    <button class="filter-pill" data-filter="error" onclick="setFilter('error')">Error</button>
+  </div>
+
+  <div class="messages-list" id="messagesList">
+    <div class="empty-state">Loading…</div>
+  </div>
+
+</div>
+
+<!-- Accounts dialog -->
+<dialog id="accountsDialog">
+  <div class="dialog-header">
+    <span>Email Accounts</span>
+    <button class="btn-icon" onclick="document.getElementById('accountsDialog').close()">&#215;</button>
+  </div>
+  <div class="dialog-body">
+    <div id="accountsList"></div>
+
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <button class="btn btn-secondary btn-sm" onclick="toggleAddAccountForm()">+ Add account</button>
+    </div>
+    <div id="addAccountForm" style="display:none;margin-top:14px">
+      <div class="field"><label>Label</label><input type="text" id="acc-label" placeholder="e.g. Gmail personal"></div>
+      <div class="field"><label>IMAP host</label><input type="text" id="acc-host" placeholder="imap.gmail.com"></div>
+      <div class="field"><label>Port</label><input type="number" id="acc-port" value="993"></div>
+      <div class="field"><label>Email address</label><input type="email" id="acc-username" placeholder="you@gmail.com"></div>
+      <div class="field"><label>Password / App Password</label><input type="password" id="acc-password" placeholder="App password (not your login password)"></div>
+      <div class="error-msg" id="addAccountError"></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-primary btn-sm" id="saveAccountBtn" onclick="saveAccount()">Save</button>
+        <button class="btn btn-secondary btn-sm" onclick="toggleAddAccountForm()">Cancel</button>
+      </div>
+    </div>
+
+  </div>
+  <div class="dialog-footer">
+    <button class="btn btn-secondary" onclick="document.getElementById('accountsDialog').close()">Close</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script src="/static/js/email.js" defer></script>
+</body>
+</html>

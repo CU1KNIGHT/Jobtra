@@ -54,6 +54,37 @@ class OpenAIProvider:
 
         return normalize_result(parsed)
 
+    async def complete(self, system: str, user: str, model: str) -> str:
+        key = self._key()
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(
+                    f"{OPENAI_API_URL}/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {key}",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": model,
+                        "response_format": {"type": "json_object"},
+                        "messages": [
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": user},
+                        ],
+                        "temperature": 0.1,
+                    },
+                )
+        except httpx.TimeoutException:
+            raise ProviderTimeout("OpenAI API timed out")
+        except httpx.ConnectError:
+            raise ProviderUnavailable("Cannot connect to OpenAI API")
+        if resp.status_code in (401, 403):
+            raise ProviderAuthError("Invalid or missing OpenAI API key")
+        try:
+            return resp.json()["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, ValueError):
+            raise ProviderBadOutput("Unexpected response from OpenAI")
+
     async def list_models(self) -> list[str]:
         key = self._key()
         try:

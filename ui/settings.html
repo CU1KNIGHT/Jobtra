@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings — Job Tracker</title>
+<link rel="stylesheet" href="/static/css/settings.css">
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Settings</h1>
+    <a class="back" href="/">&#8592; Back to jobs</a>
+  </header>
+
+  <div class="card">
+    <h2>Parser provider</h2>
+    <div id="providerList">Loading…</div>
+  </div>
+
+  <div class="card">
+    <h2>Model</h2>
+    <div class="field">
+      <label id="modelLabel">Model</label>
+      <select id="modelSelect" onchange="onModelInput()"><option>Loading…</option></select>
+      <input type="text" id="modelText" placeholder="Type a model ID…" style="display:none" oninput="onModelInput()">
+      <div class="model-error" id="modelError"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Browser bookmark</h2>
+    <p style="margin-bottom:12px;color:#444;">Drag this link to your bookmarks bar:</p>
+    <div style="text-align:center;padding:8px 0 16px;">
+      <a id="bookmarklet" class="bookmark-link" draggable="true">&#x2795; Add to Job Tracker</a>
+    </div>
+    <p style="margin-bottom:8px;color:#444;">Then visit any job page (LinkedIn, Indeed, a company careers page, etc.) and click the bookmark. The job is saved automatically to your tracker.</p>
+    <p style="margin-bottom:8px;color:#444;">Show bookmarks bar: <kbd>Ctrl+Shift+B</kbd> (Windows/Linux) / <kbd>Cmd+Shift+B</kbd> (Mac).</p>
+    <p style="margin-bottom:0;color:#444;">Requires the tracker to be running at <code>__BASE_URL__</code>. Tested in Chrome and Firefox. Safari may block it.</p>
+    <p class="bookmark-note">Note: this bookmark calls <code>__BASE_URL__</code>. If you change the PORT in .env later, re-drag this bookmark to update it.</p>
+  </div>
+
+  <div class="card">
+    <div class="actions">
+      <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+      <button class="btn btn-secondary" onclick="testParse()">Test parse</button>
+      <span class="toast" id="toast">Saved!</span>
+    </div>
+    <pre class="test-result" id="testResult"></pre>
+  </div>
+</div>
+
+<script>window.JOB_TRACKER_BASE = '__BASE_URL__';</script>
+<script src="/static/js/settings.js" defer></script>
+</body>
+</html>

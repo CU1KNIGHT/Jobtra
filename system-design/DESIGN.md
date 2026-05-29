@@ -77,10 +77,6 @@ CREATE TABLE IF NOT EXISTS jobs (
   city          TEXT    DEFAULT '',
   hr_email      TEXT    DEFAULT '',
   hr_phone      TEXT    DEFAULT '',
-  whatsapp      TEXT    DEFAULT '',                -- WhatsApp number or link if in posting
-  telegram      TEXT    DEFAULT '',                -- Telegram handle or link if in posting
-  hours_per_week TEXT   DEFAULT '',                -- e.g. "40" or "20-30"
-  languages     TEXT    DEFAULT '',                -- required languages, comma-separated, English first
   skills        TEXT    DEFAULT '',                -- comma-separated, e.g. "Kotlin,Spring,PostgreSQL"
   source_url    TEXT    DEFAULT '',                -- URL the job was parsed from (if any)
   source_text   TEXT    DEFAULT '',                -- Raw posting text used at parse time (for re-parse)
@@ -306,16 +302,12 @@ posting below and return ONLY a JSON object with these fields:
 
   position      string  - job title
   company       string  - company name
-  description    string  - the full job description / main body text, copied verbatim from the posting (not a summary)
-  city           string  - city or cities where the job is located, comma-separated if multiple, "" if fully remote or unknown
-  address        string  - full street address if present, else ""
-  hr_email       string  - contact email if present, else ""
-  hr_phone       string  - contact phone number if present, else ""
-  whatsapp       string  - WhatsApp number or link if explicitly mentioned, else ""
-  telegram       string  - Telegram username or link if explicitly mentioned, else ""
-  hours_per_week string  - weekly hours (e.g. "40", "20-30", "part-time"), "" if not mentioned
-  languages      string  - required languages comma-separated; list English first if present, else in order found; "" if none mentioned
-  skills         string  - comma-separated list of required technical skills
+  description   string  - 1-2 sentence summary of the role
+  city          string  - city where the job is located, "" if remote/unknown
+  address       string  - full street address if present, else ""
+  hr_email      string  - contact email if present, else ""
+  hr_phone      string  - contact phone if present, else ""
+  skills        string  - comma-separated list of required technical skills
 
 If a field is not present in the text, use an empty string. Do not
 invent information. Output JSON only, no commentary.
@@ -492,10 +484,16 @@ You only need to set up the providers you'll actually use. The app starts fine w
 `.env.example` (commit this):
 
 ```
+# Server
+HOST=127.0.0.1
+PORT=8000
+
 # Fill in only the providers you'll use.
 ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
 ```
+
+`server.py` reads `HOST` and `PORT` from env (defaulting to `127.0.0.1` and `8000`) and exposes them as a constant `BASE_URL` for templating into HTML (used by the Settings page for the bookmarklet).
 
 `README.md` should document:
 
@@ -506,14 +504,15 @@ ollama serve              # leave running in its own terminal
 
 # 2. (Optional) Add API keys to .env
 cp .env.example .env
-# then edit .env
+# then edit .env — set PORT here too if 8000 is taken
 
 # 3. Run the app
 python -m venv .venv
 source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn server:app --reload
-# open http://localhost:8000
+uvicorn server:app --reload --host $HOST --port $PORT
+# or just: uvicorn server:app --reload   (uses env vars if set)
+# open http://localhost:8000   (or whatever PORT you set)
 # settings page: http://localhost:8000/settings
 ```
 

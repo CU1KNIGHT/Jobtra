@@ -52,6 +52,35 @@ class AnthropicProvider:
 
         return normalize_result(parsed)
 
+    async def complete(self, system: str, user: str, model: str) -> str:
+        key = self._key()
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(
+                    f"{ANTHROPIC_API_URL}/v1/messages",
+                    headers={
+                        "x-api-key": key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": model,
+                        "max_tokens": 1024,
+                        "system": system,
+                        "messages": [{"role": "user", "content": user}],
+                    },
+                )
+        except httpx.TimeoutException:
+            raise ProviderTimeout("Anthropic API timed out")
+        except httpx.ConnectError:
+            raise ProviderUnavailable("Cannot connect to Anthropic API")
+        if resp.status_code in (401, 403):
+            raise ProviderAuthError("Invalid or missing Anthropic API key")
+        try:
+            return resp.json()["content"][0]["text"]
+        except (KeyError, IndexError, ValueError):
+            raise ProviderBadOutput("Unexpected response from Anthropic")
+
     async def list_models(self) -> list[str]:
         key = self._key()
         try:

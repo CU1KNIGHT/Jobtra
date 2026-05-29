@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Documents — Job Tracker</title>
+<link rel="stylesheet" href="/static/css/base.css">
+<link rel="stylesheet" href="/static/css/documents.css">
+<script src="/static/js/theme.js"></script>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Documents</h1>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <nav>
+        <a href="/">Jobs</a>
+        <a href="/email">Email</a>
+      </nav>
+      <div class="header-actions">
+        <button class="btn-theme" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">&#9790;</button>
+        <button class="btn btn-primary" onclick="openUploadDialog()">+ Upload new</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="jobContext" class="job-context" style="display:none">
+    <a href="/documents" class="back">&#8592; All documents</a>
+    <span>Documents for: <strong id="jobContextTitle">…</strong></span>
+  </div>
+
+  <div id="attachSection" class="attach-section" style="display:none">
+    <h3>Attach from library</h3>
+    <div class="attach-row">
+      <select id="libraryPicker"><option value="">— Select a document —</option></select>
+      <button class="btn btn-secondary" onclick="attachFromLibrary()">Attach</button>
+    </div>
+    <div class="error-msg" id="attachError"></div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="search" placeholder="Search filename or notes…" oninput="render()">
+    <select id="typeFilter" onchange="render()">
+      <option value="">All types</option>
+      <option value="cv">CV</option>
+      <option value="cover_letter">Cover letter</option>
+      <option value="certificate">Certificate</option>
+      <option value="portfolio">Portfolio</option>
+      <option value="other">Other</option>
+    </select>
+  </div>
+
+  <div class="card">
+    <div id="docsContent"><div class="empty-state">Loading…</div></div>
+  </div>
+</div>
+
+<!-- Upload dialog -->
+<dialog id="uploadDialog">
+  <div class="dialog-header">
+    <span>Upload document</span>
+    <button class="btn-icon" onclick="document.getElementById('uploadDialog').close()">&#215;</button>
+  </div>
+  <div class="dialog-body">
+    <div class="field">
+      <label>File</label>
+      <input type="file" id="uploadFile" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg">
+    </div>
+    <div class="field">
+      <label>Document type</label>
+      <select id="uploadType">
+        <option value="cv">CV / Resume</option>
+        <option value="cover_letter">Cover Letter</option>
+        <option value="certificate">Certificate</option>
+        <option value="portfolio">Portfolio</option>
+        <option value="other" selected>Other</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Notes (optional)</label>
+      <textarea id="uploadNotes" placeholder="e.g. German version, updated May 2026"></textarea>
+    </div>
+    <div class="error-msg" id="uploadError"></div>
+  </div>
+  <div class="dialog-footer">
+    <button class="btn btn-secondary" onclick="document.getElementById('uploadDialog').close()">Cancel</button>
+    <button class="btn btn-primary" id="uploadBtn" onclick="uploadDocument()">Upload</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script src="/static/js/documents.js" defer></script>
+</body>
+</html>

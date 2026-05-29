@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Details</title>
+<link rel="stylesheet" href="/static/css/base.css">
+<link rel="stylesheet" href="/static/css/job_detail.css">
+<script src="/static/js/theme.js"></script>
+</head>
+<body>
+<div class="container">
+
+  <div class="page-header">
+    <a class="back-btn" href="/">&#8592; Back</a>
+    <div class="header-title">
+      <h1 id="hPosition">—</h1>
+      <div class="company" id="hCompany">—</div>
+    </div>
+    <div class="header-right">
+      <span id="hPill" class="pill"></span>
+      <select class="status-select" id="statusSelect" onchange="changeStatus()">
+        <option value="open">Open</option>
+        <option value="applied">Applied</option>
+        <option value="interview_done">Interview done</option>
+        <option value="rejected">Rejected</option>
+        <option value="rejected_after_interview">Rejected after interview</option>
+        <option value="accepted">Accepted</option>
+      </select>
+      <button class="btn-theme" onclick="toggleTheme()" id="themeToggle">&#9790;</button>
+    </div>
+  </div>
+
+  <!-- Job info -->
+  <div class="card">
+    <div class="card-header">
+      <h2>Job Details</h2>
+      <a id="editLink" class="btn btn-secondary btn-sm" href="#">Edit</a>
+    </div>
+    <div class="card-body">
+      <div class="info-grid" id="infoGrid">
+        <div class="info-field"><label>Date applied</label><span id="iDate">—</span></div>
+        <div class="info-field"><label>City</label><span id="iCity">—</span></div>
+        <div class="info-field"><label>Address</label><span id="iAddress">—</span></div>
+        <div class="info-field"><label>Hours / week</label><span id="iHours">—</span></div>
+        <div class="info-field"><label>Languages</label><span id="iLanguages">—</span></div>
+        <div class="info-field"><label>HR Email</label><span id="iHrEmail">—</span></div>
+        <div class="info-field"><label>HR Phone</label><span id="iHrPhone">—</span></div>
+        <div class="info-field"><label>Contact</label><span id="iContact">—</span></div>
+        <div class="info-field"><label>Source URL</label><span id="iSourceUrl">—</span></div>
+        <div class="info-field full"><label>Skills</label><div class="skills-list" id="iSkills"></div></div>
+        <div class="info-field full"><label>Description</label><pre id="iDescription">—</pre></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Email history -->
+  <div class="card">
+    <div class="card-header">
+      <h2>Email History <span id="emailCount" style="font-size:13px;font-weight:400;color:var(--detail-label)"></span></h2>
+    </div>
+    <div id="emailSection">
+      <div class="empty-msg">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Documents -->
+  <div class="card">
+    <div class="card-header">
+      <h2>Files <span id="docsCount" style="font-size:13px;font-weight:400;color:var(--detail-label)"></span></h2>
+    </div>
+    <div class="card-body" style="display:grid;gap:16px">
+      <div class="doc-list" id="docList">
+        <div class="empty-msg">Loading…</div>
+      </div>
+
+      <div>
+        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()"
+             ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+          <div style="font-size:28px">&#128196;</div>
+          <p>Click to choose a file or drag &amp; drop here</p>
+          <input type="file" id="fileInput" onchange="handleFileSelect(event)">
+        </div>
+        <div class="upload-row" id="uploadControls" style="display:none">
+          <strong id="uploadFileName" style="font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></strong>
+          <select id="uploadDocType">
+            <option value="cv">CV / Resume</option>
+            <option value="cover_letter">Cover Letter</option>
+            <option value="portfolio">Portfolio</option>
+            <option value="certificate">Certificate</option>
+            <option value="other" selected>Other</option>
+          </select>
+          <input type="text" id="uploadNotes" placeholder="Notes (optional)">
+          <button class="btn btn-primary btn-sm" onclick="uploadFile()">Upload</button>
+          <button class="btn btn-secondary btn-sm" onclick="cancelUpload()">Cancel</button>
+        </div>
+        <div id="uploadError" style="color:#dc2626;font-size:12px;margin-top:6px;display:none"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>window.JOB_TRACKER_BASE = '__BASE_URL__';</script>
+<script src="/static/js/job_detail.js" defer></script>
+</body>
+</html>

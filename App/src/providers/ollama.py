@@ -41,6 +41,33 @@ class OllamaProvider:
 
         return normalize_result(parsed)
 
+    async def complete(self, system: str, user: str, model: str) -> str:
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(
+                    f"{OLLAMA_URL}/api/chat",
+                    json={
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": user},
+                        ],
+                        "stream": False,
+                        "format": "json",
+                        "options": {"temperature": 0.1},
+                    },
+                )
+        except httpx.ConnectError:
+            raise ProviderUnavailable("Ollama is not running")
+        except httpx.TimeoutException:
+            raise ProviderTimeout("Ollama timed out")
+        if resp.status_code == 404:
+            raise ProviderUnavailable(f"Model '{model}' not found. Pull it with: ollama pull {model}")
+        try:
+            return resp.json()["message"]["content"]
+        except (KeyError, ValueError):
+            raise ProviderBadOutput("Unexpected response from Ollama")
+
     async def list_models(self) -> list[str]:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:

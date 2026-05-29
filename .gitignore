@@ -1,4 +1,4 @@
-jobs.db
+App/src/jobs.db
 .venv/
 __pycache__/
 *.pyc
