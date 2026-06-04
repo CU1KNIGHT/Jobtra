@@ -25,7 +25,7 @@ def _add_version(html: str) -> str:
 
 def _serve(filename: str) -> str:
     """Read a UI page and apply the shared serve-time substitutions."""
-    html = Path(f"{UI_DIR}/{filename}").read_text()
+    html = Path(f"{UI_DIR}/{filename}").read_text(encoding="utf-8")
     html = html.replace("__BASE_URL__", BASE_URL)
     return _add_version(html)
 

@@ -31,8 +31,8 @@ No accounts, no cloud, no telemetry. Your data lives in a single SQLite file on 
 
 ```bash
 # 1. Clone
-git clone https://github.com/CU1KNIGHT/simple-job-apply-tracker.git
-cd simple-job-apply-tracker
+git clone https://github.com/CU1KNIGHT/Jobtra.git
+cd Jobtra
 
 # 2. Create a virtual environment and install deps
 python -m venv .venv

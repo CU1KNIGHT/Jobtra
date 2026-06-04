@@ -36,9 +36,9 @@ if %errorlevel%==0 (
     )
 )
 
-REM --- 1b. Check Python version (need 3.11 or higher) ------------------
+REM --- 1b. Check Python version (need 3.13 or higher) ------------------
 set "MIN_MAJOR=3"
-set "MIN_MINOR=11"
+set "MIN_MINOR=13"
 
 for /f "tokens=2" %%V in ('%PY_LAUNCH% --version 2^>^&1') do set "PYVER=%%V"
 for /f "tokens=1,2 delims=." %%A in ("%PYVER%") do (
