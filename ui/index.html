@@ -1,161 +1,250 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Job Applications</title>
-<link rel="stylesheet" href="/static/css/base.css">
-<link rel="stylesheet" href="/static/css/index.css">
-<script src="/static/js/theme.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jobs — Jobtra</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/sidebar.css">
+    <link rel="stylesheet" href="/static/css/index.css">
+    <script src="/static/js/theme.js"></script>
 </head>
 <body>
-<div class="container">
-  <header>
-    <h1>Job Applications</h1>
-    <div class="header-actions">
-      <button class="btn btn-theme" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark theme">&#9790;</button>
-      <button class="btn btn-theme" onclick="openSettingsDialog()" title="AI &amp; Settings">&#9881;</button>
-      <a class="btn btn-theme" href="/email" title="Email integration" style="text-decoration:none;padding:5px 10px;font-size:13px;">&#9993; Email</a>
-      <a class="btn btn-theme" href="/documents" title="Document library" style="text-decoration:none;padding:5px 10px;font-size:13px;">&#128196; Docs</a>
-      <button class="btn btn-export" onclick="exportCSV()">&#8659; CSV</button>
-      <button class="btn btn-secondary" onclick="openParseDialog()">&#128203; Paste &amp; parse</button>
-      <button class="btn btn-primary" onclick="openAddDialog()">+ Add job</button>
+<aside class="sidebar">
+    <div class="sidebar-top">
+        <div class="sidebar-head">
+            <button class="side-toggle" onclick="toggleSidebar()" title="Collapse / expand sidebar"
+                    aria-label="Toggle sidebar">&#9776;
+            </button>
+            <span class="sidebar-brand"><img src="/static/favicon.svg" alt="" class="sidebar-brand-mark" width="22" height="22"><span class="side-text">Jobtra</span></span>
+        </div>
+
+        <p class="side-label">Navigation</p>
+        <nav class="side-nav">
+            <a class="side-link" href="/" title="Dashboard"><span class="side-icon">&#128202;</span><span
+                    class="side-text">Dashboard</span></a>
+
+            <a class="side-link side-link-active" href="/jobs" title="Jobs"><span
+                    class="side-icon">&#128188;</span><span class="side-text">Jobs</span></a>
+            <a class="side-link" href="/email" title="Email"><span class="side-icon">📩</span><span
+                    class="side-text">Email</span></a>
+            <a class="side-link" href="/documents" title="Docs"><span class="side-icon">&#128196;</span><span
+                    class="side-text">Docs</span></a>
+        </nav>
     </div>
-  </header>
 
-  <div class="toolbar">
-    <input type="text" id="search" placeholder="Search position, company, city, skills…" oninput="render()">
-    <select id="statusFilter" onchange="render()">
-      <option value="">All statuses</option>
-      <option value="open">Open</option>
-      <option value="applied">Applied</option>
-      <option value="interview_done">Interview done</option>
-      <option value="rejected">Rejected</option>
-      <option value="rejected_after_interview">Rejected after interview</option>
-      <option value="accepted">Accepted</option>
-    </select>
-  </div>
+    <div class="sidebar-bottom">
+        <a class="side-link" href="/settings" title="Settings"><span
+                class="side-icon">⚙️</span><span class="side-text">Settings</span></a>
+        <button class="btn-theme-side" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark theme">
+            &#9790;
+        </button>
+        <span id="app-version" class="sidebar-version"></span>
+    </div>
+</aside>
 
-  <div id="tableContainer"></div>
+<div class="container">
+    <header>
+        <h1>Job Applications</h1>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-secondary" onclick="openImportDialog()">&#128229; Import</button>
+            <button class="btn btn-export" onclick="exportCSV()">📤 Export CSV</button>
+            <button class="btn btn-secondary" onclick="openParseDialog()">&#128203; Paste &amp; parse</button>
+            <button class="btn btn-primary" onclick="openAddDialog()">+ Add job</button>
+        </div>
+    </header>
+
+    <div class="toolbar">
+        <input type="text" id="search" placeholder="Search position, company, city, skills…" oninput="onFilterChange()">
+        <select id="statusFilter" onchange="onFilterChange()">
+            <option value="">All statuses</option>
+            <option value="open">Open</option>
+            <option value="applied">Applied</option>
+            <option value="interview_done">Interview done</option>
+            <option value="rejected">Rejected</option>
+            <option value="rejected_after_interview">Rejected after interview</option>
+            <option value="accepted">Accepted</option>
+        </select>
+    </div>
+
+    <div id="docFilterBanner" class="filter-banner" style="display:none"></div>
+
+    <div id="tableContainer"></div>
 </div>
 
 <dialog id="jobDialog">
-  <div class="dialog-header" id="dialogTitle">Add Job</div>
-  <div class="dialog-body">
-    <div class="dialog-error" id="dialogError"></div>
-    <div class="form-row">
-      <div class="field"><label>Position *</label><input type="text" id="f-position"></div>
-      <div class="field"><label>Company *</label><input type="text" id="f-company"></div>
+    <div class="dialog-header" id="dialogTitle">Add Job</div>
+    <div class="dialog-body">
+        <div class="dialog-error" id="dialogError"></div>
+        <div class="form-row">
+            <div class="field"><label>Position *</label><input type="text" id="f-position"></div>
+            <div class="field"><label>Company *</label><input type="text" id="f-company"></div>
+        </div>
+        <div class="form-row">
+            <div class="field"><label>Date Applied *</label><input type="date" id="f-date_applied"></div>
+            <div class="field">
+                <label>Status</label>
+                <select id="f-status">
+                    <option value="open">Open</option>
+                    <option value="applied">Applied</option>
+                    <option value="interview_done">Interview done</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="rejected_after_interview">Rejected after interview</option>
+                    <option value="accepted">Accepted</option>
+                </select>
+            </div>
+        </div>
+        <div class="field"><label>Description</label><textarea id="f-description"></textarea></div>
+        <div class="form-row">
+            <div class="field"><label>Address</label><input type="text" id="f-address"></div>
+            <div class="field"><label>City</label><input type="text" id="f-city"></div>
+        </div>
+        <div class="form-row">
+            <div class="field"><label>HR Email</label><input type="text" id="f-hr_email"></div>
+            <div class="field"><label>HR Phone</label><input type="text" id="f-hr_phone"></div>
+        </div>
+        <div class="form-row">
+            <div class="field"><label>WhatsApp</label><input type="text" id="f-whatsapp"
+                                                             placeholder="+49 123 456789 or link"></div>
+            <div class="field"><label>Telegram</label><input type="text" id="f-telegram"
+                                                             placeholder="@username or link"></div>
+        </div>
+        <div class="form-row">
+            <div class="field"><label>Hours / week</label><input type="text" id="f-hours_per_week"
+                                                                 placeholder="e.g. 40 or 20-30"></div>
+            <div class="field">
+                <label>Job type</label>
+                <select id="f-job_type">
+                    <option value="">— Unspecified —</option>
+                    <option value="full-time">Full-time</option>
+                    <option value="part-time">Part-time</option>
+                    <option value="contract">Contract</option>
+                    <option value="internship">Internship</option>
+                    <option value="freelance">Freelance</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="field"><label>Languages</label><input type="text" id="f-languages"
+                                                              placeholder="e.g. English, German"></div>
+        </div>
+        <div class="field"><label>Skills (comma-separated)</label><input type="text" id="f-skills"
+                                                                         placeholder="e.g. Python, FastAPI, PostgreSQL">
+        </div>
     </div>
-    <div class="form-row">
-      <div class="field"><label>Date Applied *</label><input type="date" id="f-date_applied"></div>
-      <div class="field">
-        <label>Status</label>
-        <select id="f-status">
-          <option value="open">Open</option>
-          <option value="applied">Applied</option>
-          <option value="interview_done">Interview done</option>
-          <option value="rejected">Rejected</option>
-          <option value="rejected_after_interview">Rejected after interview</option>
-          <option value="accepted">Accepted</option>
-        </select>
-      </div>
+    <div class="dialog-footer">
+        <button class="btn btn-secondary" onclick="closeDialog()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveJob()">Save</button>
     </div>
-    <div class="field"><label>Description</label><textarea id="f-description"></textarea></div>
-    <div class="form-row">
-      <div class="field"><label>Address</label><input type="text" id="f-address"></div>
-      <div class="field"><label>City</label><input type="text" id="f-city"></div>
-    </div>
-    <div class="form-row">
-      <div class="field"><label>HR Email</label><input type="text" id="f-hr_email"></div>
-      <div class="field"><label>HR Phone</label><input type="text" id="f-hr_phone"></div>
-    </div>
-    <div class="form-row">
-      <div class="field"><label>WhatsApp</label><input type="text" id="f-whatsapp" placeholder="+49 123 456789 or link"></div>
-      <div class="field"><label>Telegram</label><input type="text" id="f-telegram" placeholder="@username or link"></div>
-    </div>
-    <div class="form-row">
-      <div class="field"><label>Hours / week</label><input type="text" id="f-hours_per_week" placeholder="e.g. 40 or 20-30"></div>
-      <div class="field"><label>Languages</label><input type="text" id="f-languages" placeholder="e.g. English, German"></div>
-    </div>
-    <div class="field"><label>Skills (comma-separated)</label><input type="text" id="f-skills" placeholder="e.g. Python, FastAPI, PostgreSQL"></div>
-  </div>
-  <div class="dialog-footer">
-    <button class="btn btn-secondary" onclick="closeDialog()">Cancel</button>
-    <button class="btn btn-primary" onclick="saveJob()">Save</button>
-  </div>
 </dialog>
 
 <dialog id="settingsDialog">
-  <div class="dialog-header" style="display:flex;align-items:center;justify-content:space-between;">
-    <span>Settings</span>
-    <button class="btn-icon" onclick="document.getElementById('settingsDialog').close()" style="font-size:18px;opacity:.6">&#215;</button>
-  </div>
-  <div class="dialog-body" style="gap:0">
+    <div class="dialog-header" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>Settings</span>
+        <button class="btn-icon" onclick="document.getElementById('settingsDialog').close()"
+                style="font-size:18px;opacity:.6">&#215;
+        </button>
+    </div>
+    <div class="dialog-body" style="gap:0">
 
-    <div class="settings-section">
-      <h3>Parser provider</h3>
-      <div id="settingsProviderList">Loading…</div>
-    </div>
+        <div class="settings-section">
+            <h3>Parser provider</h3>
+            <div id="settingsProviderList">Loading…</div>
+        </div>
 
-    <div class="settings-section">
-      <h3>Model</h3>
-      <div class="field" style="margin-bottom:0">
-        <select id="settingsModelSelect" onchange="onSettingsModelInput()" style="width:100%;padding:7px 10px;border:1px solid var(--field-border);border-radius:6px;font-size:14px;font-family:inherit;background:var(--card);color:var(--fg)"><option>Loading…</option></select>
-        <input type="text" id="settingsModelText" placeholder="Type a model ID…" style="display:none;width:100%;padding:7px 10px;border:1px solid var(--field-border);border-radius:6px;font-size:14px;font-family:inherit;background:var(--card);color:var(--fg)" oninput="onSettingsModelInput()">
-        <div id="settingsModelError" style="font-size:12px;color:#dc2626;margin-top:4px;display:none"></div>
-      </div>
-    </div>
+        <div class="settings-section">
+            <h3>Model</h3>
+            <div class="field" style="margin-bottom:0">
+                <select id="settingsModelSelect" onchange="onSettingsModelInput()"
+                        style="width:100%;padding:7px 10px;border:1px solid var(--field-border);border-radius:6px;font-size:14px;font-family:inherit;background:var(--card);color:var(--fg)">
+                    <option>Loading…</option>
+                </select>
+                <input type="text" id="settingsModelText" placeholder="Type a model ID…"
+                       style="display:none;width:100%;padding:7px 10px;border:1px solid var(--field-border);border-radius:6px;font-size:14px;font-family:inherit;background:var(--card);color:var(--fg)"
+                       oninput="onSettingsModelInput()">
+                <div id="settingsModelError" style="font-size:12px;color:#dc2626;margin-top:4px;display:none"></div>
+            </div>
+        </div>
 
-    <div class="settings-section" style="margin-bottom:0;padding-top:4px;border-top:1px solid var(--border)">
-      <h3>Browser bookmark</h3>
-      <p style="font-size:13px;color:var(--field-label);margin-bottom:10px;">Drag to your bookmarks bar, then click on any job page to save instantly:</p>
-      <div style="text-align:center;padding:4px 0 12px;">
-        <a id="settingsBmLink" class="bookmark-link" draggable="true">&#x2795; Add to Job Tracker</a>
-      </div>
-      <p style="font-size:12px;color:var(--field-label);">Show bar: <kbd>Ctrl+Shift+B</kbd> (Win/Linux) &nbsp;/&nbsp; <kbd>Cmd+Shift+B</kbd> (Mac)</p>
-      <p style="font-size:11px;color:var(--detail-label);margin-top:6px;">Calls <code style="font-size:11px;background:var(--thead-bg);padding:1px 4px;border-radius:3px;">__BASE_URL__</code>. Re-drag after changing PORT.</p>
-    </div>
+        <div class="settings-section" style="margin-bottom:0;padding-top:4px;border-top:1px solid var(--border)">
+            <h3>Browser bookmark</h3>
+            <p style="font-size:13px;color:var(--field-label);margin-bottom:10px;">Drag to your bookmarks bar, then
+                click on any job page to save instantly:</p>
+            <div style="text-align:center;padding:4px 0 12px;">
+                <a id="settingsBmLink" class="bookmark-link" draggable="true">&#x2795; Add to Jobtra</a>
+            </div>
+            <p style="font-size:12px;color:var(--field-label);">Show bar: <kbd>Ctrl+Shift+B</kbd> (Win/Linux) &nbsp;/&nbsp;
+                <kbd>Cmd+Shift+B</kbd> (Mac)</p>
+            <p style="font-size:11px;color:var(--detail-label);margin-top:6px;">Calls <code
+                    style="font-size:11px;background:var(--thead-bg);padding:1px 4px;border-radius:3px;">__BASE_URL__</code>.
+                Re-drag after changing PORT.</p>
+        </div>
 
-  </div>
-  <div class="dialog-footer" style="justify-content:space-between;align-items:center">
-    <div style="display:flex;gap:8px;align-items:center">
-      <button class="btn btn-secondary" onclick="testSettingsParse()">Test parse</button>
-      <span class="settings-toast" id="settingsToast">Saved!</span>
     </div>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-secondary" onclick="document.getElementById('settingsDialog').close()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveSettingsDialog()">Save</button>
+    <div class="dialog-footer" style="justify-content:space-between;align-items:center">
+        <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-secondary" onclick="testSettingsParse()">Test parse</button>
+            <span class="settings-toast" id="settingsToast">Saved!</span>
+        </div>
+        <div style="display:flex;gap:8px">
+            <button class="btn btn-secondary" onclick="document.getElementById('settingsDialog').close()">Cancel
+            </button>
+            <button class="btn btn-primary" onclick="saveSettingsDialog()">Save</button>
+        </div>
     </div>
-  </div>
-  <pre class="test-result" id="settingsTestResult" style="margin:0 20px 16px"></pre>
+    <pre class="test-result" id="settingsTestResult" style="margin:0 20px 16px"></pre>
+</dialog>
+
+<dialog id="importDialog">
+    <div class="dialog-header">Import jobs</div>
+    <div class="dialog-body">
+        <div class="dialog-error" id="importError"></div>
+        <p style="font-size:13px;color:var(--field-label);margin:0">
+            Upload a <strong>.csv</strong> or <strong>.json</strong> file. Columns / keys map to job fields
+            (<code>position</code>, <code>company</code>, <code>date_applied</code>, <code>status</code>,
+            <code>city</code>, <code>skills</code>, …).
+            <strong>Position</strong> and <strong>company</strong> are required; a missing date defaults to today,
+            status to “open”. Duplicates are skipped.
+        </p>
+        <div class="field">
+            <label>File</label>
+            <input type="file" id="importFile" accept=".csv,.json,text/csv,application/json">
+        </div>
+        <pre class="test-result" id="importResult" style="margin:0"></pre>
+    </div>
+    <div class="dialog-footer">
+        <button class="btn btn-secondary" onclick="document.getElementById('importDialog').close()">Close</button>
+        <button class="btn btn-primary" id="importBtn" onclick="runImport()">Import</button>
+    </div>
 </dialog>
 
 <dialog id="parseDialog">
-  <div class="dialog-header">Paste &amp; Parse</div>
-  <div class="dialog-body">
-    <div class="dialog-error" id="parseError"></div>
-    <div id="parseProviderInfo" style="font-size:13px;color:var(--field-label);margin-bottom:8px"></div>
-    <div style="display:flex;gap:0;margin-bottom:10px;border-bottom:2px solid var(--border)">
-      <button id="tabUrl" class="parse-tab parse-tab-active" onclick="switchParseTab('url')">URL</button>
-      <button id="tabText" class="parse-tab" onclick="switchParseTab('text')">Text</button>
+    <div class="dialog-header">Paste &amp; Parse</div>
+    <div class="dialog-body">
+        <div class="dialog-error" id="parseError"></div>
+        <div id="parseProviderInfo" style="font-size:13px;color:var(--field-label);margin-bottom:8px"></div>
+        <div style="display:flex;gap:0;margin-bottom:10px;border-bottom:2px solid var(--border)">
+            <button id="tabUrl" class="parse-tab parse-tab-active" onclick="switchParseTab('url')">URL</button>
+            <button id="tabText" class="parse-tab" onclick="switchParseTab('text')">Text</button>
+        </div>
+        <div id="parseUrlPanel" class="field">
+            <label>Job posting URL</label>
+            <input type="url" id="parseUrl" placeholder="https://company.com/jobs/123">
+        </div>
+        <div id="parseTextPanel" class="field" style="display:none">
+            <label>Job posting text</label>
+            <textarea id="parseText" style="min-height:140px" placeholder="Paste the full job posting here…"></textarea>
+        </div>
     </div>
-    <div id="parseUrlPanel" class="field">
-      <label>Job posting URL</label>
-      <input type="url" id="parseUrl" placeholder="https://company.com/jobs/123">
+    <div class="dialog-footer">
+        <button class="btn btn-secondary" onclick="document.getElementById('parseDialog').close()">Cancel</button>
+        <button class="btn btn-primary" id="parseBtn" onclick="runParse()">Fetch &amp; parse</button>
     </div>
-    <div id="parseTextPanel" class="field" style="display:none">
-      <label>Job posting text</label>
-      <textarea id="parseText" style="min-height:140px" placeholder="Paste the full job posting here…"></textarea>
-    </div>
-  </div>
-  <div class="dialog-footer">
-    <button class="btn btn-secondary" onclick="document.getElementById('parseDialog').close()">Cancel</button>
-    <button class="btn btn-primary" id="parseBtn" onclick="runParse()">Fetch &amp; parse</button>
-  </div>
 </dialog>
 
-<script>window.JOB_TRACKER_BASE = '__BASE_URL__';</script>
+<script>window.JOBTRA_BASE = '__BASE_URL__';</script>
+<script src="/static/js/shared.js" defer></script>
 <script src="/static/js/index.js" defer></script>
 </body>
 </html>

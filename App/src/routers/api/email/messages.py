@@ -32,6 +32,22 @@ def _provider_error_response(e: Exception, provider_name: str) -> JSONResponse:
 router = APIRouter(tags=["email", "messages"])
 
 
+def _email_model_provider() -> tuple[str, str]:
+    """Resolve the model/provider used to classify emails. The email-specific
+    settings take precedence; when they're unset (blank) we follow the global
+    parser settings. We read the raw columns so an unset value is distinguishable
+    from a saved default."""
+    import settings as app_settings
+    gs = app_settings.get_settings()
+    db.get_email_settings()  # self-heals the email_* columns if a migration is pending
+    row = db.get_conn().execute(
+        "SELECT email_provider, email_ollama_model FROM settings WHERE id = 1"
+    ).fetchone()
+    ep = ((row["email_provider"] if row else "") or "").strip()
+    em = ((row["email_ollama_model"] if row else "") or "").strip()
+    return (em or gs.get("model", "llama3.1:8b"), ep or gs.get("provider", "ollama"))
+
+
 @router.get("/api/email/messages")
 def list_email_messages(
     relevance: Optional[str] = Query(None),
@@ -43,10 +59,7 @@ def list_email_messages(
 
 @router.post("/api/email/process")
 async def process_emails(relevance: str = "pending"):
-    import settings as app_settings
-    s = app_settings.get_settings()
-    model = s.get("model", "llama3.1:8b")
-    provider_name = s.get("provider", "ollama")
+    model, provider_name = _email_model_provider()
 
     async def stream():
         async for event in email_sync.process_pending_emails(model, provider_name):
@@ -60,10 +73,7 @@ async def process_single_email(msg_id: int):
     msg = db.get_email_message(msg_id)
     if msg is None:
         raise HTTPException(404, "Message not found")
-    import settings as app_settings
-    s = app_settings.get_settings()
-    model = s.get("model", "llama3.1:8b")
-    provider_name = s.get("provider", "ollama")
+    model, provider_name = _email_model_provider()
     try:
         result = await email_sync.process_email_with_llm(msg, model, provider_name)
     except Exception as e:
@@ -88,12 +98,15 @@ async def process_single_email(msg_id: int):
     position = result.get("position") or ""
     if company:
         matched = db.find_matching_job(company, position)
-        if matched and confidence >= 0.85:
-            new_status = email_sync.STATUS_MAP.get(llm_status)
-            if new_status:
-                db.update_job_status(matched["id"], new_status)
+        if matched:
+            # Always link the email to its job so it shows up in jobs.
             db.update_email_message(msg_id, {"linked_job_id": matched["id"]})
             linked_job_id = matched["id"]
+            # Only auto-change status when confident and the job isn't final.
+            if confidence >= 0.85 and matched.get("status") not in email_sync.TERMINAL_STATUSES:
+                new_status = email_sync.STATUS_MAP.get(llm_status)
+                if new_status:
+                    db.update_job_status(matched["id"], new_status)
     return {
         "id": msg_id, "relevance": "relevant", "llm_status": llm_status,
         "confidence": confidence, "linked_job_id": linked_job_id,

@@ -1,0 +1,12 @@
+# Dev config (auto-loaded by `docker compose up` on top of docker-compose.yml).
+# Bind-mounts the source so edits are picked up by uvicorn --reload — no rebuild
+# needed for code/UI changes. Delete or ignore this file for a production run
+# (use `docker compose -f docker-compose.yml up` to skip it).
+services:
+  app:
+    volumes:
+      - ./App/src:/app/App/src
+      - ./ui:/app/ui
+      - ./VERSION:/app/VERSION:ro
+      - jobtra-data:/data
+    command: sh -c "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000} --reload"

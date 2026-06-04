@@ -1,9 +1,16 @@
 import json
+import os
+import re
 import sqlite3
 from typing import Optional
 from cryptography.fernet import Fernet
 
-DB_PATH = "jobs.db"
+from config import SECRET_KEY_PATH
+
+# Location of the SQLite file. Defaults to "jobs.db" in the working directory
+# (App/src) for local runs; override with DB_PATH to point at a mounted data
+# volume in container/deployment setups.
+DB_PATH = os.getenv("DB_PATH", "jobs.db")
 
 _conn: Optional[sqlite3.Connection] = None
 
@@ -11,8 +18,12 @@ _conn: Optional[sqlite3.Connection] = None
 def get_conn() -> sqlite3.Connection:
     global _conn
     if _conn is None:
+        parent = os.path.dirname(DB_PATH)
+        if parent:
+            os.makedirs(parent, exist_ok=True)  # e.g. /data when DB_PATH is on a volume
         conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
         _init_schema(conn)
         _conn = conn  # only assign after successful init so failed inits retry
     return _conn
@@ -112,7 +123,7 @@ _DEFAULT_EMAIL_KEYWORDS = json.dumps([
 
 def _migrate(conn: sqlite3.Connection) -> None:
     cols = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)")}
-    for col in ("source_url", "source_text", "whatsapp", "telegram", "hours_per_week", "languages", "source_email_id"):
+    for col in ("source_url", "source_text", "whatsapp", "telegram", "hours_per_week", "languages", "source_email_id", "job_type"):
         if col not in cols:
             conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT DEFAULT ''")
 
@@ -120,6 +131,17 @@ def _migrate(conn: sqlite3.Connection) -> None:
     for col in ("email_ollama_model", "email_sync_interval", "email_keywords", "fernet_key", "email_provider"):
         if col not in settings_cols:
             conn.execute(f"ALTER TABLE settings ADD COLUMN {col} TEXT")
+    # page size for the jobs/email lists; INTEGER with a default so existing rows backfill.
+    if "page_size" not in settings_cols:
+        conn.execute("ALTER TABLE settings ADD COLUMN page_size INTEGER NOT NULL DEFAULT 25")
+
+    # Remove orphaned document links left behind by job deletions that
+    # happened while foreign-key enforcement was off (so ON DELETE CASCADE
+    # never fired). These inflated document usage counts.
+    conn.execute("""
+        DELETE FROM job_documents
+        WHERE job_id NOT IN (SELECT id FROM jobs)
+    """)
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict:
@@ -151,11 +173,11 @@ def create_job(data: dict) -> dict:
         INSERT INTO jobs (position, company, description, date_applied, status,
                           address, city, hr_email, hr_phone, skills,
                           whatsapp, telegram, hours_per_week, languages,
-                          source_url, source_text)
+                          source_url, source_text, job_type)
         VALUES (:position, :company, :description, :date_applied, :status,
                 :address, :city, :hr_email, :hr_phone, :skills,
                 :whatsapp, :telegram, :hours_per_week, :languages,
-                :source_url, :source_text)
+                :source_url, :source_text, :job_type)
         """,
         {**data, "skills": skills,
          "whatsapp": data.get("whatsapp", ""),
@@ -163,7 +185,8 @@ def create_job(data: dict) -> dict:
          "hours_per_week": data.get("hours_per_week", ""),
          "languages": data.get("languages", ""),
          "source_url": data.get("source_url", ""),
-         "source_text": data.get("source_text", "")},
+         "source_text": data.get("source_text", ""),
+         "job_type": data.get("job_type", "")},
     )
     conn.commit()
     return get_job(cursor.lastrowid)
@@ -191,6 +214,7 @@ def update_job(job_id: int, data: dict) -> Optional[dict]:
             languages = :languages,
             source_url = :source_url,
             source_text = :source_text,
+            job_type = :job_type,
             updated_at = datetime('now')
         WHERE id = :id
         """,
@@ -201,6 +225,7 @@ def update_job(job_id: int, data: dict) -> Optional[dict]:
          "languages": data.get("languages", ""),
          "source_url": data.get("source_url", ""),
          "source_text": data.get("source_text", ""),
+         "job_type": data.get("job_type", ""),
          "id": job_id},
     )
     conn.commit()
@@ -288,7 +313,9 @@ def list_documents(job_id: Optional[int] = None) -> list[dict]:
     if job_id is not None:
         rows = conn.execute("""
             SELECT d.*, jd.attached_at,
-                   (SELECT COUNT(*) FROM job_documents WHERE document_id = d.id) AS usage_count
+                   (SELECT COUNT(*) FROM job_documents jc
+                    JOIN jobs j ON j.id = jc.job_id
+                    WHERE jc.document_id = d.id) AS usage_count
             FROM documents d
             JOIN job_documents jd ON jd.document_id = d.id
             WHERE jd.job_id = ?
@@ -297,7 +324,9 @@ def list_documents(job_id: Optional[int] = None) -> list[dict]:
     else:
         rows = conn.execute("""
             SELECT d.*,
-                   (SELECT COUNT(*) FROM job_documents WHERE document_id = d.id) AS usage_count
+                   (SELECT COUNT(*) FROM job_documents jc
+                    JOIN jobs j ON j.id = jc.job_id
+                    WHERE jc.document_id = d.id) AS usage_count
             FROM documents d
             ORDER BY d.uploaded_at DESC
         """).fetchall()
@@ -332,7 +361,10 @@ def delete_document(doc_id: int) -> bool:
 def count_job_documents(doc_id: int) -> int:
     conn = get_conn()
     row = conn.execute(
-        "SELECT COUNT(*) AS cnt FROM job_documents WHERE document_id = ?", (doc_id,)
+        """SELECT COUNT(*) AS cnt FROM job_documents jd
+           JOIN jobs j ON j.id = jd.job_id
+           WHERE jd.document_id = ?""",
+        (doc_id,),
     ).fetchone()
     return row["cnt"] if row else 0
 
@@ -546,17 +578,129 @@ def email_message_exists(account_id: int, uid: str) -> bool:
     return row is not None
 
 
+# Legal-form / generic tokens that shouldn't count toward a company match.
+_COMPANY_STOPWORDS = {
+    "gmbh", "mbh", "ag", "kg", "ohg", "se", "co", "inc", "ltd", "llc", "plc",
+    "bv", "nv", "sa", "srl", "gbr", "ug", "kgaa",
+    "steuerberatungsgesellschaft", "steuerberatung", "gesellschaft",
+    "group", "holding", "the",
+}
+
+
+def _normalize_company(name: str) -> tuple[str, list[str]]:
+    """Lowercase, strip punctuation/legal suffixes. Returns (joined, tokens)."""
+    s = re.sub(r"[^a-z0-9äöüß ]+", " ", (name or "").lower())
+    tokens = [t for t in s.split() if t and t not in _COMPANY_STOPWORDS]
+    return " ".join(tokens), tokens
+
+
 def find_matching_job(company: str, position: str) -> Optional[dict]:
     conn = get_conn()
-    company_lower = company.lower()
+    target, _ = _normalize_company(company)
+    if not target:
+        return None
+    # Match against all jobs so emails still link to finalized applications;
+    # prefer still-active jobs, then most recent.
     rows = conn.execute(
-        "SELECT * FROM jobs WHERE status NOT IN ('rejected','accepted') ORDER BY date_applied DESC"
+        """
+        SELECT * FROM jobs
+        ORDER BY (status IN ('rejected', 'rejected_after_interview', 'accepted')) ASC,
+                 date_applied DESC
+        """
     ).fetchall()
     candidates = [_row_to_dict(r) for r in rows]
     for j in candidates:
-        if company_lower in (j.get("company") or "").lower():
+        jc, _ = _normalize_company(j.get("company") or "")
+        if not jc:
+            continue
+        # Match either direction, ignoring legal suffixes / extra words:
+        # "kalkül" (job) ⊂ "kalkül dresden gmbh" (email) and vice versa.
+        if target in jc or jc in target:
             return j
     return None
+
+
+# ── Dashboard analytics ───────────────────────────────────────────────────────
+
+def _parse_hours(value: str):
+    m = re.search(r"\d+", value or "")
+    return int(m.group()) if m else None
+
+
+def _classify_type(position: str, description: str, hours: str) -> str:
+    """Best-effort job-type bucket. The schema has no type column, so we infer
+    it from text keywords (EN/DE), falling back to hours_per_week."""
+    t = f"{position} {description}".lower()
+    if any(k in t for k in ("intern", "praktik", "werkstud", "working student")):
+        return "internship"
+    if any(k in t for k in ("freelance", "freiberuf", "contractor")):
+        return "freelance"
+    # "befristet" = fixed-term, but must not match inside "unbefristet" (permanent)
+    if any(k in t for k in ("contract", "fixed-term", "temporary")) or \
+            ("befristet" in t and "unbefristet" not in t):
+        return "contract"
+    if any(k in t for k in ("part-time", "part time", "teilzeit", "minijob")):
+        return "part-time"
+    if any(k in t for k in ("full-time", "full time", "vollzeit", "permanent", "unbefristet")):
+        return "full-time"
+    h = _parse_hours(hours)
+    if h is not None:
+        return "full-time" if h >= 35 else "part-time"
+    return "unspecified"
+
+
+def get_dashboard_stats() -> dict:
+    """Read-only aggregates over the jobs table for the dashboard."""
+    conn = get_conn()
+
+    def _count(where: str = "", params: tuple = ()) -> int:
+        clause = f" WHERE {where}" if where else ""
+        return conn.execute(f"SELECT COUNT(*) AS c FROM jobs{clause}", params).fetchone()["c"]
+
+    total = _count()
+    active = _count("status IN ('open','applied')")
+    interviews = _count("status = 'interview_done'")
+    rejected = _count("status IN ('rejected','rejected_after_interview')")
+    rejection_rate = round(rejected / total, 2) if total else 0.0
+
+    by_month = [dict(r) for r in conn.execute(
+        "SELECT substr(date_applied,1,7) AS month, COUNT(*) AS count "
+        "FROM jobs WHERE date_applied IS NOT NULL AND TRIM(date_applied) != '' "
+        "GROUP BY month ORDER BY month"
+    ).fetchall()]
+    by_status = [dict(r) for r in conn.execute(
+        "SELECT status, COUNT(*) AS count FROM jobs GROUP BY status ORDER BY count DESC"
+    ).fetchall()]
+    by_city = [dict(r) for r in conn.execute(
+        "SELECT city, COUNT(*) AS count FROM jobs WHERE TRIM(COALESCE(city,'')) != '' "
+        "GROUP BY city ORDER BY count DESC"
+    ).fetchall()]
+    by_position = [dict(r) for r in conn.execute(
+        "SELECT position, COUNT(*) AS count FROM jobs WHERE TRIM(COALESCE(position,'')) != '' "
+        "GROUP BY position ORDER BY count DESC"
+    ).fetchall()]
+
+    type_counts: dict[str, int] = {}
+    for r in conn.execute("SELECT position, description, hours_per_week, job_type FROM jobs").fetchall():
+        explicit = (r["job_type"] or "").strip()
+        bucket = explicit or _classify_type(r["position"] or "", r["description"] or "", r["hours_per_week"] or "")
+        type_counts[bucket] = type_counts.get(bucket, 0) + 1
+    by_type = [{"type": k, "count": v}
+               for k, v in sorted(type_counts.items(), key=lambda kv: kv[1], reverse=True)]
+
+    return {
+        "summary": {
+            "total": total,
+            "active": active,
+            "interviews": interviews,
+            "rejection_rate": rejection_rate,
+        },
+        "by_month": by_month,
+        "by_status": by_status,
+        "by_type": by_type,
+        "by_city": by_city,
+        "by_position": by_position,
+    }
 
 
 def get_email_sync_status() -> dict:
@@ -583,28 +727,27 @@ def get_email_settings() -> dict:
             conn.execute(f"ALTER TABLE settings ADD COLUMN {col} TEXT")
     conn.commit()
     row = conn.execute(
-        "SELECT email_provider, email_ollama_model, email_sync_interval, email_keywords, fernet_key FROM settings WHERE id = 1"
+        "SELECT email_provider, email_ollama_model, email_sync_interval, email_keywords FROM settings WHERE id = 1"
     ).fetchone()
     if not row:
         return {
-            "email_provider": "ollama",
-            "email_ollama_model": "llama3.2:3b",
+            # provider/model blank means "follow the global parser settings"
+            "email_provider": "",
+            "email_ollama_model": "",
             "email_sync_interval": 60,
             "email_keywords": json.loads(_DEFAULT_EMAIL_KEYWORDS),
-            "fernet_key": "",
         }
     return {
-        "email_provider": row["email_provider"] or "ollama",
-        "email_ollama_model": row["email_ollama_model"] or "llama3.2:3b",
+        "email_provider": row["email_provider"] or "",
+        "email_ollama_model": row["email_ollama_model"] or "",
         "email_sync_interval": int(row["email_sync_interval"] or 60),
         "email_keywords": json.loads(row["email_keywords"]) if row["email_keywords"] else json.loads(_DEFAULT_EMAIL_KEYWORDS),
-        "fernet_key": row["fernet_key"] or "",
     }
 
 
 def update_email_settings(data: dict) -> dict:
     conn = get_conn()
-    allowed = {"email_provider", "email_ollama_model", "email_sync_interval", "email_keywords", "fernet_key"}
+    allowed = {"email_provider", "email_ollama_model", "email_sync_interval", "email_keywords"}
     sets = []
     vals = []
     for k, v in data.items():
@@ -618,9 +761,35 @@ def update_email_settings(data: dict) -> dict:
 
 
 def get_or_create_fernet_key() -> bytes:
-    s = get_email_settings()
-    key = s.get("fernet_key", "")
-    if not key:
-        key = Fernet.generate_key().decode()
-        update_email_settings({"fernet_key": key})
-    return key.encode() if isinstance(key, str) else key
+    """Return the Fernet key, stored in a standalone file (config.SECRET_KEY_PATH).
+
+    The key is intentionally kept outside jobs.db so it never sits alongside the
+    data it protects. Older installs that stored the key in the DB are migrated
+    to the file (so existing encrypted passwords still decrypt) and the DB copy
+    is then cleared.
+    """
+    path = SECRET_KEY_PATH
+    if path.exists():
+        return path.read_bytes().strip()
+
+    # Migrate a legacy key from the DB if present, else mint a fresh one.
+    legacy = ""
+    try:
+        row = get_conn().execute("SELECT fernet_key FROM settings WHERE id = 1").fetchone()
+        legacy = (row["fernet_key"] if row else "") or ""
+    except sqlite3.OperationalError:
+        pass  # column never existed on this DB
+    key = legacy.encode() if legacy else Fernet.generate_key()
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(key)
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass  # best-effort; e.g. on filesystems without POSIX perms
+
+    if legacy:
+        conn = get_conn()
+        conn.execute("UPDATE settings SET fernet_key = '' WHERE id = 1")
+        conn.commit()
+    return key

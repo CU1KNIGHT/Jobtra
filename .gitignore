@@ -1,4 +1,10 @@
 App/src/jobs.db
+App/src/secret.key
+secret.key
 .venv/
 __pycache__/
 *.pyc
+
+# Local environment file (copied from .env.example; may hold API keys)
+.env
+App/.env

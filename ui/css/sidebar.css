@@ -1,0 +1,236 @@
+/* ── Collapsible sidebar (shared: jobs, email, documents) ────────────────── */
+:root {
+  --sb-w: 240px;            /* expanded width  */
+  --side-text:        #334155;  /* slate-700  */
+  --side-text-hover:  #0f172a;  /* slate-900  */
+  --side-hover-bg:    #f1f5f9;  /* slate-100  */
+  --side-muted:       #94a3b8;  /* slate-400  */
+  --side-active-text: #4f46e5;  /* indigo-600 */
+  --side-active-bg:   #eef2ff;  /* indigo-50  */
+  --side-edge:        #e2e8f0;  /* slate-200  */
+  --color-text-tertiary: var(--side-muted);
+}
+[data-sidebar="collapsed"] { --sb-w: 68px; }
+
+[data-theme="dark"] {
+  --side-text:        #cbd5e1;  /* slate-300  */
+  --side-text-hover:  #f1f5f9;  /* slate-100  */
+  --side-hover-bg:    #273244;
+  --side-muted:       #64748b;  /* slate-500  */
+  --side-active-text: #a5b4fc;  /* indigo-300 */
+  --side-active-bg:   #312e81;  /* indigo-900 */
+  --side-edge:        #334155;  /* slate-700  */
+}
+
+/* push page content clear of the fixed sidebar */
+body { padding-left: calc(var(--sb-w) + 24px); transition: padding-left .2s ease, background .2s, color .2s; }
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--sb-w);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 12px;
+  background: var(--card);
+  border-right: 1px solid var(--side-edge);
+  z-index: 20;
+  overflow-x: hidden;
+  overflow-y: auto;
+  transition: width .2s ease;
+}
+
+/* head: toggle + brand */
+.sidebar-head { display: flex; align-items: center; gap: 8px; padding: 2px 2px 10px; }
+.side-toggle {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--side-text);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s, color .15s;
+}
+.side-toggle:hover { background: var(--side-hover-bg); color: var(--side-text-hover); }
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--side-text-hover);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sidebar-brand-mark { flex: none; width: 22px; height: 22px; display: block; border-radius: 6px; }
+
+/* section label */
+.side-label {
+  padding: 12px 10px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--side-muted);
+  white-space: nowrap;
+}
+
+.sidebar-top { display: flex; flex-direction: column; gap: 2px; }
+.side-nav,
+.side-group { display: flex; flex-direction: column; gap: 2px; }
+
+/* one flat row style shared by links and action buttons */
+.side-link,
+.sidebar .btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--side-text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: none;
+  transform: none;
+  transition: background .15s, color .15s;
+}
+.side-link:hover,
+.sidebar .btn:hover {
+  background: var(--side-hover-bg);
+  color: var(--side-text-hover);
+  transform: none;
+  box-shadow: none;
+}
+.side-icon { flex: none; width: 20px; text-align: center; font-size: 16px; line-height: 1; opacity: .9; }
+
+.side-link-active,
+.side-link-active:hover {
+  background: var(--side-active-bg);
+  color: var(--side-active-text);
+  font-weight: 600;
+}
+
+/* primary action keeps an accent fill */
+.sidebar .btn-primary,
+.sidebar .btn-primary:hover {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
+}
+
+/* theme toggle — icon only (theme.js rewrites its text), styled as a row */
+.btn-theme-side {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--side-text);
+  font-family: inherit;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.btn-theme-side:hover { background: var(--side-hover-bg); color: var(--side-text-hover); }
+[data-sidebar="collapsed"] .btn-theme-side { justify-content: center; padding-left: 0; padding-right: 0; }
+
+/* bottom group pinned to the floor */
+.sidebar-bottom {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 12px;
+  border-top: 1px solid var(--side-edge);
+}
+
+/* app version, pinned below settings + theme toggle */
+.sidebar-version {
+  display: block;
+  padding: 8px 12px 2px;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  transition: opacity .15s;
+}
+
+/* ── Collapsed state: icon rail ──────────────────────────────────────────── */
+[data-sidebar="collapsed"] .sidebar-version { display: none; }
+[data-sidebar="collapsed"] .side-text,
+[data-sidebar="collapsed"] .side-label,
+[data-sidebar="collapsed"] .sidebar-brand { display: none; }
+[data-sidebar="collapsed"] .sidebar-head { justify-content: center; }
+[data-sidebar="collapsed"] .side-link,
+[data-sidebar="collapsed"] .sidebar .btn {
+  justify-content: center;
+  gap: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+@media (max-width: 768px) {
+  /* horizontal top bar on mobile, regardless of collapsed state */
+  body { padding-left: 16px; }
+  .sidebar {
+    position: static;
+    width: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border-right: none;
+    border-bottom: 1px solid var(--side-edge);
+  }
+  .sidebar-head { padding: 0 6px 0 0; }
+  .side-toggle { display: none; }
+  .sidebar-top,
+  .side-nav,
+  .side-group,
+  .sidebar-bottom { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .sidebar-bottom { margin-top: 0; padding-top: 0; border-top: none; }
+  .side-label { display: none; }
+  .sidebar-brand,
+  [data-sidebar="collapsed"] .sidebar-brand { display: flex; }
+  .side-text,
+  [data-sidebar="collapsed"] .side-text { display: inline; }
+  .side-link,
+  .sidebar .btn,
+  .btn-theme-side,
+  [data-sidebar="collapsed"] .side-link,
+  [data-sidebar="collapsed"] .sidebar .btn,
+  [data-sidebar="collapsed"] .btn-theme-side {
+    width: auto;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+}

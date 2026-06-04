@@ -1,4 +1,4 @@
-const BASE = window.JOB_TRACKER_BASE || '';
+const BASE = window.JOBTRA_BASE || '';
 const JOB_ID = parseInt(location.pathname.split('/').pop(), 10);
 
 let job = null;

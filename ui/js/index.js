@@ -3,6 +3,9 @@ let docCounts = {};
 let editingId = null;
 let expandedId = null;
 let pendingSource = { source_url: '', source_text: '' };
+let docFilter = null;  // { ids:Set<int>, name:string } when filtering by a document
+let pageSize = 25;     // items per page, from settings
+let currentPage = 1;
 
 const STATUS_LABELS = {
   open: 'Open',
@@ -12,6 +15,14 @@ const STATUS_LABELS = {
   rejected_after_interview: 'Rejected after interview',
   accepted: 'Accepted',
 };
+
+async function loadPageSize() {
+  try {
+    const r = await fetch('/api/settings');
+    const s = await r.json();
+    if (s.page_size) pageSize = s.page_size;
+  } catch (_) {}
+}
 
 async function fetchJobs() {
   const res = await fetch('/api/jobs');
@@ -29,8 +40,32 @@ function filtered() {
   return jobs.filter(j => {
     const matchStatus = !s || j.status === s;
     const matchText = !q || [j.position, j.company, j.city, j.skills].some(f => (f || '').toLowerCase().includes(q));
-    return matchStatus && matchText;
+    const matchDoc = !docFilter || docFilter.ids.has(j.id);
+    return matchStatus && matchText && matchDoc;
   });
+}
+
+async function applyDocFilterFromUrl() {
+  const docId = parseInt(new URLSearchParams(location.search).get('document'), 10);
+  if (!docId) return;
+  try {
+    const r = await fetch(`/api/documents/${docId}/jobs`);
+    if (!r.ok) return;
+    const data = await r.json();
+    docFilter = {
+      ids: new Set((data.jobs || []).map(j => j.id)),
+      name: (data.document && data.document.filename) || 'document',
+    };
+  } catch (_) {}
+}
+
+function renderDocFilterBanner() {
+  const el = document.getElementById('docFilterBanner');
+  if (!el) return;
+  if (!docFilter) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  el.innerHTML = `Showing ${docFilter.ids.size} job(s) that use ` +
+    `<strong>${esc(docFilter.name)}</strong> · <a href="/jobs">Show all</a>`;
 }
 
 function pill(status) {
@@ -57,7 +92,11 @@ function render() {
     return;
   }
 
-  const rows = list.map(j => {
+  currentPage = clampPage(currentPage, list.length, pageSize);
+  const start = (currentPage - 1) * pageSize;
+  const pageItems = list.slice(start, start + pageSize);
+
+  const rows = pageItems.map(j => {
     const isExpanded = j.id === expandedId;
     const mainRow = `
       <tr class="${isExpanded ? 'expanded' : ''}" onclick="toggleExpand(${j.id}, event)">
@@ -123,7 +162,19 @@ function render() {
         </tr>
       </thead>
       <tbody>${rows}</tbody>
-    </table>`;
+    </table>` + renderPager(list.length, currentPage, pageSize, 'gotoPage');
+}
+
+function gotoPage(n) {
+  currentPage = n;
+  render();
+  document.getElementById('tableContainer')?.scrollIntoView({ block: 'start' });
+}
+
+// Filter/search changed — jump back to the first page so results aren't hidden.
+function onFilterChange() {
+  currentPage = 1;
+  render();
 }
 
 function toggleExpand(id, e) {
@@ -167,6 +218,7 @@ function openAddDialog() {
   document.getElementById('f-whatsapp').value = '';
   document.getElementById('f-telegram').value = '';
   document.getElementById('f-hours_per_week').value = '';
+  document.getElementById('f-job_type').value = '';
   document.getElementById('f-languages').value = '';
   document.getElementById('f-skills').value = '';
   hideError();
@@ -191,6 +243,7 @@ function openEditDialog(id) {
   document.getElementById('f-whatsapp').value = j.whatsapp || '';
   document.getElementById('f-telegram').value = j.telegram || '';
   document.getElementById('f-hours_per_week').value = j.hours_per_week || '';
+  document.getElementById('f-job_type').value = j.job_type || '';
   document.getElementById('f-languages').value = j.languages || '';
   document.getElementById('f-skills').value = j.skills;
   hideError();
@@ -228,6 +281,7 @@ async function saveJob() {
     whatsapp: document.getElementById('f-whatsapp').value.trim(),
     telegram: document.getElementById('f-telegram').value.trim(),
     hours_per_week: document.getElementById('f-hours_per_week').value.trim(),
+    job_type: document.getElementById('f-job_type').value,
     languages: document.getElementById('f-languages').value.trim(),
     skills: document.getElementById('f-skills').value.trim(),
     source_url: pendingSource.source_url,
@@ -279,6 +333,68 @@ function exportCSV() {
   a.download = `job-applications-${today()}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+function openImportDialog() {
+  document.getElementById('importFile').value = '';
+  const err = document.getElementById('importError');
+  err.style.display = 'none';
+  err.textContent = '';
+  const res = document.getElementById('importResult');
+  res.style.display = 'none';
+  res.textContent = '';
+  res.classList.remove('error');
+  document.getElementById('importBtn').disabled = false;
+  document.getElementById('importDialog').showModal();
+}
+
+async function runImport() {
+  const fileInput = document.getElementById('importFile');
+  const err = document.getElementById('importError');
+  const res = document.getElementById('importResult');
+  const btn = document.getElementById('importBtn');
+  err.style.display = 'none';
+
+  if (!fileInput.files.length) {
+    err.textContent = 'Please choose a CSV or JSON file.';
+    err.style.display = 'block';
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = 'Importing…';
+
+  try {
+    const r = await fetch('/api/jobs/import', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!r.ok) {
+      err.textContent = data.detail || 'Import failed';
+      err.style.display = 'block';
+      return;
+    }
+    let msg = `Imported ${data.imported} of ${data.total} row(s).`;
+    if (data.skipped) msg += ` Skipped ${data.skipped} duplicate(s).`;
+    if (data.errors && data.errors.length) {
+      msg += `\n\n${data.errors.length} row(s) skipped with errors:\n` +
+        data.errors.slice(0, 20).map(e => `  row ${e.row}: ${e.error}`).join('\n');
+      if (data.errors.length > 20) msg += `\n  …and ${data.errors.length - 20} more`;
+      res.classList.add('error');
+    } else {
+      res.classList.remove('error');
+    }
+    res.textContent = msg;
+    res.style.display = 'block';
+    await fetchJobs();
+  } catch (e) {
+    err.textContent = 'Network error: ' + e.message;
+    err.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
 }
 
 let parseTab = 'url';
@@ -406,6 +522,7 @@ function openAddDialogPrefilled(data) {
   document.getElementById('f-whatsapp').value = data.whatsapp || '';
   document.getElementById('f-telegram').value = data.telegram || '';
   document.getElementById('f-hours_per_week').value = data.hours_per_week || '';
+  document.getElementById('f-job_type').value = data.job_type || '';
   document.getElementById('f-languages').value = data.languages || '';
   document.getElementById('f-skills').value = data.skills || '';
   hideError();
@@ -538,14 +655,18 @@ async function testSettingsParse() {
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
-fetchJobs().then(() => {
+(async function init() {
+  await loadPageSize();
+  await applyDocFilterFromUrl();
+  await fetchJobs();
+  renderDocFilterBanner();
   const editId = parseInt(new URLSearchParams(location.search).get('edit'), 10);
   if (editId) openEditDialog(editId);
-});
+})();
 
 // Bookmarklet — uses BASE_URL injected inline by the server
 (function () {
-  const base = window.JOB_TRACKER_BASE || '';
+  const base = window.JOBTRA_BASE || '';
   const code = "(async()=>{const t=document.body.innerText.slice(0,50000),u=location.href,d=document.createElement('div');d.style.cssText='position:fixed;bottom:20px;right:20px;z-index:999999;background:#222;color:#fff;padding:12px 16px;border-radius:6px;font:14px system-ui,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.3);max-width:320px;';d.textContent='Saving to tracker...';document.body.appendChild(d);try{const r=await fetch('" + base + "/api/parse-from-bookmarklet',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t,url:u})});const j=await r.json();if(!r.ok){d.textContent='✗ '+(j.error||'Save failed')+(j.hint?' ('+j.hint+')':'');d.style.background='#a00';setTimeout(()=>d.remove(),6000);}else{d.textContent='✓ Saved: '+j.position+' at '+j.company;d.style.background='#060';setTimeout(()=>d.remove(),3000);}}catch(e){d.textContent='✗ '+(e.message||'network error');d.style.background='#a00';setTimeout(()=>d.remove(),6000);}})();";
   const el = document.getElementById('settingsBmLink');
   if (el) el.href = 'javascript:' + encodeURIComponent(code);

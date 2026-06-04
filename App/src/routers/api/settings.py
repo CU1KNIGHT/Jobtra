@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -10,6 +11,7 @@ router = APIRouter(tags=["settings"])
 class SettingsInput(BaseModel):
     provider: str
     model: str
+    page_size: Optional[int] = None
 
 @router.get("/api/settings")
 def get_settings():
@@ -25,6 +27,6 @@ def get_settings():
 @router.put("/api/settings")
 def update_settings(payload: SettingsInput):
     try:
-        return app_settings.update_settings(payload.provider, payload.model)
+        return app_settings.update_settings(payload.provider, payload.model, payload.page_size)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))

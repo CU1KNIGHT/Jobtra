@@ -1,7 +1,9 @@
 import email as email_lib
 import imaplib
 import json
+import threading
 from datetime import datetime, timezone
+from typing import Optional
 from email.header import decode_header
 from email.utils import parsedate_to_datetime
 from cryptography.fernet import Fernet
@@ -77,9 +79,10 @@ def _extract_plaintext(msg) -> str:
         return ""
 
 
-def is_relevant(subject: str, body: str) -> bool:
+def is_relevant(subject: str, body: str, keywords=None) -> bool:
+    kws = keywords if keywords else RELEVANCE_KEYWORDS
     text = ((subject or "") + " " + (body or "")[:500]).lower()
-    return any(kw in text for kw in RELEVANCE_KEYWORDS)
+    return any((kw or "").lower() in text for kw in kws)
 
 
 # ── Sync ──────────────────────────────────────────────────────────────────────
@@ -176,6 +179,29 @@ def run_email_sync() -> dict:
     return {"new_messages": total_new, "errors": errors}
 
 
+# ── Single-flight sync guard (shared by manual trigger + auto scheduler) ───────
+_sync_lock = threading.Lock()
+_sync_running = False
+
+
+def is_sync_running() -> bool:
+    return _sync_running
+
+
+def run_sync_guarded() -> Optional[dict]:
+    """Run a sync unless one is already in progress. Returns None if skipped."""
+    global _sync_running
+    with _sync_lock:
+        if _sync_running:
+            return None
+        _sync_running = True
+    try:
+        return run_email_sync()
+    finally:
+        with _sync_lock:
+            _sync_running = False
+
+
 # ── LLM processing ────────────────────────────────────────────────────────────
 
 async def process_email_with_llm(msg: dict, model: str, provider_name: str = "ollama") -> dict:
@@ -197,15 +223,32 @@ STATUS_MAP = {
     "application_received": "applied",
 }
 
+# Final states we won't auto-change (e.g. an old "received" email must not
+# un-reject a job). Emails still get linked to these jobs.
+TERMINAL_STATUSES = {"rejected", "rejected_after_interview", "accepted"}
+
 
 async def process_pending_emails(model: str, provider_name: str = "ollama"):
     """Async generator: process all pending emails, yield NDJSON event strings."""
     messages = db.list_email_messages(relevance="pending")
+    keywords = db.get_email_settings().get("email_keywords") or RELEVANCE_KEYWORDS
     for msg in messages:
         try:
+            now = datetime.now(timezone.utc).isoformat()
+
+            # Cheap keyword pre-filter: skip the LLM for emails that match no
+            # keyword and mark them irrelevant straight away (saves tokens/time).
+            if not is_relevant(msg.get("subject", ""), msg.get("body_text", ""), keywords):
+                db.update_email_message(msg["id"], {
+                    "relevance": "irrelevant",
+                    "processed_at": now,
+                    "llm_raw": json.dumps({"skipped": "keyword_prefilter"}),
+                })
+                yield json.dumps({"id": msg["id"], "relevance": "irrelevant", "skipped": True}) + "\n"
+                continue
+
             result = await process_email_with_llm(msg, model, provider_name)
             relevant = result.get("relevant", False)
-            now = datetime.now(timezone.utc).isoformat()
 
             if not relevant:
                 db.update_email_message(msg["id"], {
@@ -230,15 +273,19 @@ async def process_pending_emails(model: str, provider_name: str = "ollama"):
             company = result.get("company") or ""
             position = result.get("position") or ""
 
+            status_updated = False
             if company:
                 matched = db.find_matching_job(company, position)
                 if matched:
-                    if confidence >= 0.85:
+                    # Always link the email to its job so it shows up in jobs.
+                    db.update_email_message(msg["id"], {"linked_job_id": matched["id"]})
+                    linked_job_id = matched["id"]
+                    # Only auto-change status when confident and the job isn't final.
+                    if confidence >= 0.85 and matched.get("status") not in TERMINAL_STATUSES:
                         new_status = STATUS_MAP.get(llm_status)
                         if new_status:
                             db.update_job_status(matched["id"], new_status)
-                        db.update_email_message(msg["id"], {"linked_job_id": matched["id"]})
-                        linked_job_id = matched["id"]
+                            status_updated = True
 
             yield json.dumps({
                 "id": msg["id"],
@@ -249,7 +296,7 @@ async def process_pending_emails(model: str, provider_name: str = "ollama"):
                 "company": company,
                 "position": position,
                 "notes": result.get("notes", ""),
-                "auto_applied": linked_job_id is not None and confidence >= 0.85,
+                "auto_applied": status_updated,
             }) + "\n"
 
         except (ProviderUnavailable, ProviderTimeout, ProviderBadOutput) as e:

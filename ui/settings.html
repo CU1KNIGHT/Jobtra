@@ -3,14 +3,40 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Settings — Job Tracker</title>
+<title>Settings — Jobtra</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="stylesheet" href="/static/css/base.css">
+<link rel="stylesheet" href="/static/css/sidebar.css">
 <link rel="stylesheet" href="/static/css/settings.css">
+<script src="/static/js/theme.js"></script>
 </head>
 <body>
+<aside class="sidebar">
+  <div class="sidebar-top">
+    <div class="sidebar-head">
+      <button class="side-toggle" onclick="toggleSidebar()" title="Collapse / expand sidebar" aria-label="Toggle sidebar">&#9776;</button>
+      <span class="sidebar-brand"><img src="/static/favicon.svg" alt="" class="sidebar-brand-mark" width="22" height="22"><span class="side-text">Jobtra</span></span>
+    </div>
+
+    <p class="side-label">Navigation</p>
+    <nav class="side-nav">
+      <a class="side-link" href="/" title="Dashboard"><span class="side-icon">&#128202;</span><span class="side-text">Dashboard</span></a>
+      <a class="side-link" href="/jobs" title="Jobs"><span class="side-icon">&#128188;</span><span class="side-text">Jobs</span></a>
+      <a class="side-link" href="/email" title="Email"><span class="side-icon">📩</span><span class="side-text">Email</span></a>
+      <a class="side-link" href="/documents" title="Docs"><span class="side-icon">&#128196;</span><span class="side-text">Docs</span></a>
+    </nav>
+  </div>
+
+  <div class="sidebar-bottom">
+    <a class="side-link side-link-active" href="/settings" title="Settings"><span class="side-icon">⚙️</span><span class="side-text">Settings</span></a>
+    <button class="btn-theme-side" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark theme">☀️ &#9790;</button>
+    <span id="app-version" class="sidebar-version"></span>
+  </div>
+</aside>
+
 <div class="container">
   <header>
     <h1>Settings</h1>
-    <a class="back" href="/">&#8592; Back to jobs</a>
   </header>
 
   <div class="card">
@@ -26,21 +52,6 @@
       <input type="text" id="modelText" placeholder="Type a model ID…" style="display:none" oninput="onModelInput()">
       <div class="model-error" id="modelError"></div>
     </div>
-  </div>
-
-  <div class="card">
-    <h2>Browser bookmark</h2>
-    <p style="margin-bottom:12px;color:#444;">Drag this link to your bookmarks bar:</p>
-    <div style="text-align:center;padding:8px 0 16px;">
-      <a id="bookmarklet" class="bookmark-link" draggable="true">&#x2795; Add to Job Tracker</a>
-    </div>
-    <p style="margin-bottom:8px;color:#444;">Then visit any job page (LinkedIn, Indeed, a company careers page, etc.) and click the bookmark. The job is saved automatically to your tracker.</p>
-    <p style="margin-bottom:8px;color:#444;">Show bookmarks bar: <kbd>Ctrl+Shift+B</kbd> (Windows/Linux) / <kbd>Cmd+Shift+B</kbd> (Mac).</p>
-    <p style="margin-bottom:0;color:#444;">Requires the tracker to be running at <code>__BASE_URL__</code>. Tested in Chrome and Firefox. Safari may block it.</p>
-    <p class="bookmark-note">Note: this bookmark calls <code>__BASE_URL__</code>. If you change the PORT in .env later, re-drag this bookmark to update it.</p>
-  </div>
-
-  <div class="card">
     <div class="actions">
       <button class="btn btn-primary" onclick="saveSettings()">Save</button>
       <button class="btn btn-secondary" onclick="testParse()">Test parse</button>
@@ -48,9 +59,66 @@
     </div>
     <pre class="test-result" id="testResult"></pre>
   </div>
+
+  <div class="card">
+    <h2>Display</h2>
+    <p class="hint">How many jobs and emails to show per page before paging.</p>
+    <div class="field">
+      <label for="pageSize">Items per page</label>
+      <input type="number" id="pageSize" min="5" max="500" step="5" value="25">
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="savePageSize()">Save</button>
+      <span class="toast" id="pageSizeToast">Saved!</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Email classifier</h2>
+    <p class="hint">Model used to classify synced emails, and how often to auto-sync.
+      Leave provider/model blank to reuse the parser settings above.</p>
+    <div class="field">
+      <label>Provider</label>
+      <select id="emailProvider">
+        <option value="">Same as parser</option>
+        <option value="ollama">Ollama</option>
+        <option value="anthropic">Anthropic Claude</option>
+        <option value="openai">OpenAI</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Model</label>
+      <input type="text" id="emailModel" placeholder="blank = use parser model (e.g. llama3.2:3b)">
+    </div>
+    <div class="field">
+      <label>Auto-sync interval (minutes)</label>
+      <input type="number" id="emailSyncInterval" min="5" step="5" value="60">
+    </div>
+    <div class="field">
+      <label>Relevance keywords (comma-separated)</label>
+      <textarea id="emailKeywords" rows="3" placeholder="application, interview, offer, …"></textarea>
+    </div>
+    <p class="hint">“Process all pending” skips emails that match none of these keywords — without calling the model. A single <em>Re-process</em> always runs the model regardless.</p>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="saveEmailSettings()">Save email settings</button>
+      <span class="toast" id="emailToast">Saved!</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Browser bookmark</h2>
+    <p class="hint">Drag this link to your bookmarks bar:</p>
+    <div style="text-align:center;padding:8px 0 16px;">
+      <a id="bookmarklet" class="bookmark-link" draggable="true">&#x2795; Add to Jobtra</a>
+    </div>
+    <p class="hint">Then visit any job page (LinkedIn, Indeed, a company careers page, etc.) and click the bookmark. The job is saved automatically to your tracker.</p>
+    <p class="hint">Show bookmarks bar: <kbd>Ctrl+Shift+B</kbd> (Windows/Linux) / <kbd>Cmd+Shift+B</kbd> (Mac).</p>
+    <p class="bookmark-note">Note: this bookmark calls <code>__BASE_URL__</code>. If you change the PORT in .env later, re-drag this bookmark to update it.</p>
+  </div>
 </div>
 
-<script>window.JOB_TRACKER_BASE = '__BASE_URL__';</script>
+<script>window.JOBTRA_BASE = '__BASE_URL__';</script>
+<script src="/static/js/shared.js" defer></script>
 <script src="/static/js/settings.js" defer></script>
 </body>
 </html>

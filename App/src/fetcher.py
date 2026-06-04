@@ -87,7 +87,7 @@ async def fetch_as_text(url: str) -> str:
             timeout=10.0,
             follow_redirects=True,
             max_redirects=3,
-            headers={"User-Agent": "JobTracker/1.0"},
+            headers={"User-Agent": "Jobtra/1.0"},
         ) as client:
             async with client.stream("GET", url) as resp:
                 # Check content length header

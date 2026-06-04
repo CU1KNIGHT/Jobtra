@@ -1,6 +1,22 @@
 import db
 
 
+# ── DB_PATH / connection ──────────────────────────────────────────────────────
+
+def test_db_path_creates_file_and_nested_dirs(tmp_path, monkeypatch):
+    """get_conn() should honour a custom DB_PATH and create missing parent
+    directories (so a containerised /data/jobs.db works on first run)."""
+    target = tmp_path / "data" / "nested" / "jobs.db"
+    monkeypatch.setattr(db, "DB_PATH", str(target))
+    monkeypatch.setattr(db, "_conn", None)
+
+    conn = db.get_conn()
+
+    assert target.exists()
+    # Schema is initialised on a fresh file.
+    assert conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0
+
+
 # ── Jobs ──────────────────────────────────────────────────────────────────────
 
 def test_list_jobs_empty():
@@ -74,7 +90,10 @@ def test_settings_row_exists_with_defaults():
 
 def test_get_email_settings_defaults():
     s = db.get_email_settings()
-    assert s["email_provider"] == "ollama"
+    # Blank provider/model means "follow the global parser settings" by design,
+    # so the email-specific defaults are empty rather than a concrete provider.
+    assert s["email_provider"] == ""
+    assert s["email_ollama_model"] == ""
     assert s["email_sync_interval"] == 60
     assert isinstance(s["email_keywords"], list)
     assert len(s["email_keywords"]) > 0
@@ -193,9 +212,23 @@ def test_find_matching_job_no_match(job_payload):
     assert db.find_matching_job("Amazon", "engineer") is None
 
 
-def test_find_matching_job_skips_closed(job_payload):
+def test_find_matching_job_matches_closed(job_payload):
+    # Emails should still link to finalized applications, so a closed job is a
+    # valid match when it's the only candidate.
     db.create_job({**job_payload, "company": "Acme Corp", "status": "rejected"})
-    assert db.find_matching_job("acme", "engineer") is None
+    matched = db.find_matching_job("acme", "engineer")
+    assert matched is not None
+    assert matched["status"] == "rejected"
+
+
+def test_find_matching_job_prefers_active_over_closed(job_payload):
+    # When both exist, an active application wins over a finalized one.
+    db.create_job({**job_payload, "company": "Acme Corp", "status": "rejected",
+                   "date_applied": "2026-02-01"})
+    db.create_job({**job_payload, "company": "Acme Corp", "status": "applied",
+                   "date_applied": "2026-01-01"})
+    matched = db.find_matching_job("acme", "engineer")
+    assert matched["status"] == "applied"
 
 
 # ── Email sync status ─────────────────────────────────────────────────────────

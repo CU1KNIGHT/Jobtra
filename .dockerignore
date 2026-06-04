@@ -1,0 +1,21 @@
+# Keep the build context small and never bake local state into the image.
+.git/
+.idea/
+.venv/
+**/.venv/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local data / secrets — these live on the /data volume at runtime instead.
+*.db
+App/src/jobs.db
+App/src/db/
+secret.key
+App/secret.key
+App/src/secret.key
+App/.env
+
+# Tests and docs aren't needed in the runtime image.
+App/tests/
+system-design/

@@ -92,7 +92,7 @@ function render() {
     const usageCell = isJobView
       ? `<span class="usage-zero">—</span>`
       : (usageCount > 0
-        ? `<span class="usage-zero">${usageCount} job${usageCount !== 1 ? 's' : ''}</span>`
+        ? `<a class="usage-link" href="/jobs?document=${d.id}" title="Show jobs using this document">${usageCount} job${usageCount !== 1 ? 's' : ''}</a>`
         : `<span class="usage-zero">Unused</span>`);
     const deleteDisabled = !isJobView && usageCount > 0 ? 'disabled title="Detach from all jobs first"' : '';
     const actionBtns = isJobView

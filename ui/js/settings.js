@@ -11,8 +11,65 @@ async function init() {
   currentProvider = s.provider;
   currentModel = s.model;
   keyStatus = s.key_status;
+  const ps = document.getElementById('pageSize');
+  if (ps && s.page_size) ps.value = s.page_size;
   renderProviders(s.providers);
   await loadModels(currentProvider, currentModel);
+  await loadEmailSettings();
+}
+
+async function savePageSize() {
+  const pageSize = Math.max(5, Math.min(500, parseInt(document.getElementById('pageSize').value, 10) || 25));
+  const toast = document.getElementById('pageSizeToast');
+  const res = await fetch('/api/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider: currentProvider, model: currentModel, page_size: pageSize }),
+  });
+  if (res.ok) {
+    const s = await res.json();
+    document.getElementById('pageSize').value = s.page_size;  // reflect clamped value
+    toast.textContent = 'Saved!';
+  } else {
+    toast.textContent = 'Save failed';
+  }
+  toast.style.display = 'inline';
+  setTimeout(() => { toast.style.display = 'none'; }, 2500);
+}
+
+async function loadEmailSettings() {
+  try {
+    const r = await fetch('/api/email/settings');
+    const s = await r.json();
+    const p = document.getElementById('emailProvider');
+    const m = document.getElementById('emailModel');
+    const iv = document.getElementById('emailSyncInterval');
+    const kw = document.getElementById('emailKeywords');
+    if (p) p.value = s.email_provider || '';
+    if (m) m.value = s.email_ollama_model || '';
+    if (iv) iv.value = s.email_sync_interval || 60;
+    if (kw) kw.value = (s.email_keywords || []).join(', ');
+  } catch (_) {}
+}
+
+async function saveEmailSettings() {
+  const provider = document.getElementById('emailProvider').value;
+  const model = document.getElementById('emailModel').value.trim();
+  const interval = Math.max(5, parseInt(document.getElementById('emailSyncInterval').value, 10) || 60);
+  const keywords = document.getElementById('emailKeywords').value
+    .split(',').map(k => k.trim()).filter(Boolean);
+  const toast = document.getElementById('emailToast');
+  const r = await fetch('/api/email/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email_provider: provider, email_ollama_model: model,
+      email_sync_interval: interval, email_keywords: keywords,
+    }),
+  });
+  toast.textContent = r.ok ? 'Saved!' : 'Save failed';
+  toast.style.display = 'inline';
+  setTimeout(() => { toast.style.display = 'none'; }, 2500);
 }
 
 function esc(str) {
@@ -140,7 +197,7 @@ init();
 
 // Bookmarklet href — uses BASE_URL injected inline by the server
 (function () {
-  const base = window.JOB_TRACKER_BASE || '';
+  const base = window.JOBTRA_BASE || '';
   const code = "(async()=>{const t=document.body.innerText.slice(0,50000),u=location.href,d=document.createElement('div');d.style.cssText='position:fixed;bottom:20px;right:20px;z-index:999999;background:#222;color:#fff;padding:12px 16px;border-radius:6px;font:14px system-ui,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.3);max-width:320px;';d.textContent='Saving to tracker...';document.body.appendChild(d);try{const r=await fetch('" + base + "/api/parse-from-bookmarklet',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t,url:u})});const j=await r.json();if(!r.ok){d.textContent='✗ '+(j.error||'Save failed')+(j.hint?' ('+j.hint+')':'');d.style.background='#a00';setTimeout(()=>d.remove(),6000);}else{d.textContent='✓ Saved: '+j.position+' at '+j.company;d.style.background='#060';setTimeout(()=>d.remove(),3000);}}catch(e){d.textContent='✗ '+(e.message||'network error');d.style.background='#a00';setTimeout(()=>d.remove(),6000);}})();";
   document.getElementById('bookmarklet').href = 'javascript:' + encodeURIComponent(code);
 })();

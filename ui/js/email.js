@@ -4,6 +4,8 @@ let expandedId = null;
 let syncPollInterval = null;
 let processingIds = new Set();
 let activeFilter = '';
+let pageSize = 25;     // items per page, from settings
+let currentPage = 1;
 
 const STATUS_LABELS = {
   rejection: 'Rejection', interview_invite: 'Interview invite',
@@ -25,7 +27,34 @@ function showToast(msg, isError) {
 }
 
 async function init() {
+  await loadPageSize();
   await Promise.all([loadMessages(), loadStatus(), loadAccounts(), loadAllJobs()]);
+}
+
+async function loadPageSize() {
+  try {
+    const r = await fetch('/api/settings');
+    const s = await r.json();
+    if (s.page_size) pageSize = s.page_size;
+  } catch (_) {}
+}
+
+function gotoPage(n) {
+  currentPage = n;
+  render();
+  document.getElementById('messagesList')?.scrollIntoView({ block: 'start' });
+}
+
+// Search box changed — jump back to the first page.
+function onSearchChange() {
+  currentPage = 1;
+  render();
+}
+
+// Account dropdown changed — reset paging then reload that account's messages.
+function onAccountChange() {
+  currentPage = 1;
+  loadMessages();
 }
 
 async function loadAllJobs() {
@@ -97,6 +126,7 @@ async function loadAccounts() {
 
 function setFilter(val) {
   activeFilter = val;
+  currentPage = 1;
   document.querySelectorAll('#filterPills .filter-pill').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.filter === val);
   });
@@ -149,7 +179,11 @@ function render() {
     return;
   }
 
-  container.innerHTML = list.map(m => {
+  currentPage = clampPage(currentPage, list.length, pageSize);
+  const start = (currentPage - 1) * pageSize;
+  const pageItems = list.slice(start, start + pageSize);
+
+  container.innerHTML = pageItems.map(m => {
     const isExpanded = m.id === expandedId;
     const isProcessing = processingIds.has(m.id);
     const dot = `<div class="relevance-dot dot-${m.relevance}"></div>`;
@@ -168,12 +202,13 @@ function render() {
       ? `<a href="/jobs/${linkedJob.id}" class="status-badge" style="background:#dcfce7;color:#15803d;text-decoration:none;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap" title="Linked job">&#10003; ${esc(linkedJob.company)}</a>`
       : '';
 
-    const processBtn = (m.relevance === 'pending' || m.relevance === 'error')
-      ? `<button class="btn btn-secondary btn-sm" onclick="processSingle(${m.id},event)"
-           ${isProcessing ? 'disabled' : ''} title="Process with LLM">
-           ${isProcessing ? '<span class="spinner">&#9696;</span>' : '&#9654;'} Process
-         </button>`
-      : '';
+    const isProcessed = m.relevance === 'relevant' || m.relevance === 'irrelevant';
+    const processBtn = `<button class="btn btn-secondary btn-sm" onclick="processSingle(${m.id},event)"
+           ${isProcessing ? 'disabled' : ''} title="${isProcessed ? 'Re-process with LLM' : 'Process with LLM'}">
+           ${isProcessing
+             ? '<span class="spinner">&#9696;</span>'
+             : (isProcessed ? '&#8635;' : '&#9654;')} ${isProcessed ? 'Re-process' : 'Process'}
+         </button>`;
 
     const date = m.received_at ? new Date(m.received_at).toLocaleDateString() : '';
 
@@ -196,7 +231,7 @@ function render() {
         </div>
         ${isExpanded ? renderDetail(m) : ''}
       </div>`;
-  }).join('');
+  }).join('') + renderPager(list.length, currentPage, pageSize, 'gotoPage');
 }
 
 function renderDetail(m) {
@@ -389,6 +424,7 @@ async function processSingle(msgId, e) {
       expandedId = msgId;
       await loadAllJobs();
       await loadStatus();
+      await loadMessages();
       showToast(data.relevance === 'relevant'
         ? `Relevant — ${STATUS_LABELS[data.llm_status] || data.llm_status || 'classified'}`
         : 'Not relevant to job applications');

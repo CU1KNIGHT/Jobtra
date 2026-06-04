@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — Jobtra</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/sidebar.css">
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+    <script src="/static/js/theme.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
+</head>
+<body>
+<aside class="sidebar">
+    <div class="sidebar-top">
+        <div class="sidebar-head">
+            <button class="side-toggle" onclick="toggleSidebar()" title="Collapse / expand sidebar"
+                    aria-label="Toggle sidebar">&#9776;
+            </button>
+            <span class="sidebar-brand"><img src="/static/favicon.svg" alt="" class="sidebar-brand-mark" width="22" height="22"><span class="side-text">Jobtra</span></span>
+        </div>
+
+        <p class="side-label">Navigation</p>
+        <nav class="side-nav">
+            <a class="side-link side-link-active" href="/" title="Dashboard"><span
+                    class="side-icon">&#128202;</span><span class="side-text">Dashboard</span></a>
+
+            <a class="side-link" href="/jobs" title="Jobs"><span class="side-icon">&#128188;</span><span
+                    class="side-text">Jobs</span></a>
+            <a class="side-link" href="/email" title="Email"><span class="side-icon">📩</span><span
+                    class="side-text">Email</span></a>
+            <a class="side-link" href="/documents" title="Docs"><span class="side-icon">&#128196;</span><span
+                    class="side-text">Docs</span></a>
+        </nav>
+    </div>
+
+    <div class="sidebar-bottom">
+        <a class="side-link" href="/settings" title="Settings"><span class="side-icon">⚙️</span><span
+                class="side-text">Settings</span></a>
+        <button class="btn-theme-side" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark theme">
+            &#9790;
+        </button>
+        <span id="app-version" class="sidebar-version"></span>
+    </div>
+</aside>
+
+<div class="container">
+    <header>
+        <h1>Dashboard</h1>
+        <div style="display:flex;align-items:center;gap:8px;">
+            <button class="btn btn-secondary" id="refreshBtn" onclick="loadDashboard()">&#8635; Refresh</button>
+        </div>
+    </header>
+
+    <div id="dashContent">
+        <div class="dash-empty">Loading…</div>
+    </div>
+</div>
+
+<script src="/static/js/shared.js" defer></script>
+<script src="/static/js/dashboard.js" defer></script>
+</body>
+</html>

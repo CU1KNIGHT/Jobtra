@@ -17,6 +17,7 @@ class JobInput(BaseModel):
     telegram: str = ""
     hours_per_week: str = ""
     languages: str = ""
+    job_type: str = ""
     skills: str = ""
     source_url: str = ""
     source_text: str = ""

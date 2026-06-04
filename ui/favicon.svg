@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Job Tracker logo">
+  <defs>
+    <linearGradient id="jt-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#jt-grad)"/>
+  <g fill="none" stroke="#ffffff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round">
+    <!-- handle -->
+    <path d="M24 22v-4a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v4"/>
+    <!-- case -->
+    <rect x="13" y="22" width="38" height="27" rx="4.5"/>
+    <!-- checkmark = tracked -->
+    <path d="M24 36l5.5 5.5L40 30"/>
+  </g>
+</svg>

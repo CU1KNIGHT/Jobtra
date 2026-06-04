@@ -2,7 +2,7 @@ import hashlib
 from pathlib import Path
 from typing import Optional
 
-from fastapi import HTTPException, Query, APIRouter, UploadFile, File
+from fastapi import HTTPException, Query, APIRouter, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 
 import db
@@ -16,11 +16,19 @@ def list_documents(job_id: Optional[int] = Query(None)):
     return db.list_documents(job_id=job_id)
 
 
+@router.get("/api/documents/{doc_id}/jobs")
+def list_jobs_for_document(doc_id: int):
+    doc = db.get_document(doc_id)
+    if doc is None:
+        raise HTTPException(404, "Document not found")
+    return {"document": doc, "jobs": db.get_jobs_for_document(doc_id)}
+
+
 @router.post("/api/documents", status_code=201)
 async def upload_document(
     file: UploadFile = File(...),
-    doc_type: str = "other",
-    notes: str = "",
+    doc_type: str = Form("other"),
+    notes: str = Form(""),
 ):
     file_bytes = await file.read()
     file_hash = hashlib.sha256(file_bytes).hexdigest()
@@ -82,9 +90,9 @@ def list_job_documents(job_id: int):
 async def attach_document(
     job_id: int,
     file: Optional[UploadFile] = File(None),
-    doc_type: str = "other",
-    notes: str = "",
-    document_id: Optional[int] = None,
+    doc_type: str = Form("other"),
+    notes: str = Form(""),
+    document_id: Optional[int] = Form(None),
 ):
     if db.get_job(job_id) is None:
         raise HTTPException(404, "Job not found")

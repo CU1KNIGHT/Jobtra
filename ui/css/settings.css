@@ -1,31 +1,25 @@
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* Settings page — relies on base.css (reset, body, .btn, .field) + sidebar.css.
+   Only page-specific pieces here, themed via CSS variables. */
 
-body {
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 14px;
-  background: #f5f5f5;
-  color: #1a1a1a;
-  padding: 24px 16px;
-}
-
-.container { max-width: 560px; margin: 0 auto; }
-
-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
-header h1 { font-size: 20px; font-weight: 700; }
-
-a.back { font-size: 13px; color: #2563eb; text-decoration: none; }
-a.back:hover { text-decoration: underline; }
+.container { max-width: 620px; }
 
 .card {
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.08);
-  padding: 20px 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 1px 3px var(--shadow);
+  padding: 18px 22px;
   margin-bottom: 16px;
 }
 .card h2 { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+.card .hint { font-size: 13px; color: var(--field-label); margin-bottom: 12px; }
 
-.provider-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+.field { margin-bottom: 12px; }
+
+.provider-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--row-border);
+}
 .provider-row:last-child { border-bottom: none; }
 .provider-row label { flex: 1; font-weight: 600; cursor: pointer; }
 
@@ -33,68 +27,51 @@ a.back:hover { text-decoration: underline; }
 .key-ok   { background: #dcfce7; color: #15803d; }
 .key-miss { background: #fef9c3; color: #854d0e; }
 .key-none { background: #f3f4f6; color: #6b7280; }
-
-.field { margin-bottom: 12px; }
-.field label { display: block; font-size: 12px; font-weight: 600; color: #555; margin-bottom: 4px; }
-.field select, .field input[type="text"] {
-  width: 100%; padding: 7px 10px; border: 1px solid #d1d5db;
-  border-radius: 6px; font-size: 14px; font-family: inherit; background: #fff;
-}
-.field select:focus, .field input:focus {
-  outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,.15);
-}
+[data-theme="dark"] .key-ok   { background: #14391f; color: #86efac; }
+[data-theme="dark"] .key-miss { background: #422006; color: #fde68a; }
+[data-theme="dark"] .key-none { background: #374151; color: #9ca3af; }
 
 .model-error { font-size: 12px; color: #dc2626; margin-top: 4px; display: none; }
 
-.btn {
-  padding: 7px 16px; border: none; border-radius: 8px;
-  font-size: 14px; font-weight: 600; cursor: pointer;
-  font-family: inherit; line-height: 1.4;
-  transition: transform .12s, box-shadow .12s, background .15s;
-}
-.btn:hover  { transform: translateY(-1px); }
-.btn:active { transform: translateY(0); box-shadow: none !important; }
-.btn:disabled { opacity: .5; cursor: not-allowed; transform: none !important; }
-
-.btn-primary {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(37,99,235,.30);
-}
-.btn-primary:hover {
-  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
-  box-shadow: 0 4px 14px rgba(37,99,235,.40);
-}
-.btn-secondary {
-  background: #e5e7eb; color: #333;
-  border: 1px solid #d1d5db;
-  box-shadow: 0 1px 3px rgba(0,0,0,.08);
-}
-.btn-secondary:hover { box-shadow: 0 3px 8px rgba(0,0,0,.12); }
-
-.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-
+.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
 .toast { font-size: 13px; color: #15803d; font-weight: 600; display: none; }
+[data-theme="dark"] .toast { color: #86efac; }
 
 .test-result {
-  margin-top: 14px; background: #f8fafc; border: 1px solid #e2e8f0;
-  border-radius: 6px; padding: 12px; font-size: 13px; white-space: pre-wrap;
-  font-family: monospace; display: none; max-height: 260px; overflow-y: auto;
+  margin-top: 14px;
+  background: var(--thead-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 13px;
+  white-space: pre-wrap;
+  font-family: monospace;
+  display: none;
+  max-height: 260px;
+  overflow-y: auto;
+  color: var(--fg);
 }
 .test-result.error { border-color: #fca5a5; background: #fff1f2; color: #dc2626; }
+[data-theme="dark"] .test-result.error { background: #4c1d1d; color: #fca5a5; }
 
 .bookmark-link {
-  display: inline-block; padding: 9px 20px;
+  display: inline-block;
+  padding: 9px 20px;
   background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  color: #fff; border-radius: 8px; font-size: 14px; font-weight: 600;
-  text-decoration: none; cursor: grab; user-select: none;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: grab;
+  user-select: none;
   box-shadow: 0 2px 8px rgba(37,99,235,.35);
   transition: transform .12s, box-shadow .12s;
 }
 .bookmark-link:hover  { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(37,99,235,.45); }
 .bookmark-link:active { transform: translateY(0); cursor: grabbing; }
 
-.bookmark-note { font-size: 12px; color: #6b7280; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f0f0; }
-.bookmark-note code { background: #f3f4f6; padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+.bookmark-note { font-size: 12px; color: var(--field-label); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--row-border); }
+.bookmark-note code { background: var(--thead-bg); padding: 1px 4px; border-radius: 3px; font-size: 11px; }
 
-kbd { background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 3px; padding: 1px 5px; font-size: 12px; }
+kbd { background: var(--thead-bg); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; font-size: 12px; }

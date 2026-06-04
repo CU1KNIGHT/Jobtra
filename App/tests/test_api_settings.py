@@ -42,6 +42,30 @@ def test_update_settings_missing_field(client):
     assert r.status_code == 422
 
 
+def test_settings_includes_default_page_size(client):
+    assert client.get("/api/settings").json()["page_size"] == 25
+
+
+def test_update_page_size_round_trips(client):
+    r = client.put("/api/settings", json={"provider": "ollama", "model": "llama3.1:8b", "page_size": 75})
+    assert r.status_code == 200
+    assert r.json()["page_size"] == 75
+    assert client.get("/api/settings").json()["page_size"] == 75
+
+
+def test_update_page_size_is_clamped(client):
+    too_big = client.put("/api/settings", json={"provider": "ollama", "model": "llama3.1:8b", "page_size": 99999})
+    assert too_big.json()["page_size"] == 500
+    too_small = client.put("/api/settings", json={"provider": "ollama", "model": "llama3.1:8b", "page_size": 1})
+    assert too_small.json()["page_size"] == 5
+
+
+def test_update_without_page_size_preserves_it(client):
+    client.put("/api/settings", json={"provider": "ollama", "model": "llama3.1:8b", "page_size": 200})
+    client.put("/api/settings", json={"provider": "openai", "model": "gpt-4o"})
+    assert client.get("/api/settings").json()["page_size"] == 200
+
+
 def test_get_email_settings(client):
     r = client.get("/api/email/settings")
     assert r.status_code == 200
