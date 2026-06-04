@@ -36,6 +36,55 @@ if %errorlevel%==0 (
     )
 )
 
+REM --- 1b. Check Python version (need 3.11 or higher) ------------------
+set "MIN_MAJOR=3"
+set "MIN_MINOR=11"
+
+for /f "tokens=2" %%V in ('%PY_LAUNCH% --version 2^>^&1') do set "PYVER=%%V"
+for /f "tokens=1,2 delims=." %%A in ("%PYVER%") do (
+    set "PY_MAJOR=%%A"
+    set "PY_MINOR=%%B"
+)
+
+set "PY_TOO_OLD="
+if %PY_MAJOR% LSS %MIN_MAJOR% set "PY_TOO_OLD=1"
+if %PY_MAJOR%==%MIN_MAJOR% if %PY_MINOR% LSS %MIN_MINOR% set "PY_TOO_OLD=1"
+
+if defined PY_TOO_OLD (
+    echo [WARN] Python %PYVER% was found, but Jobtra needs Python %MIN_MAJOR%.%MIN_MINOR% or higher.
+    echo.
+
+    where winget >nul 2>&1
+    if !errorlevel!==0 (
+        echo You can upgrade automatically using winget.
+        set /p "DO_UPGRADE=Upgrade Python to the latest version now? [Y/N] "
+        if /i "!DO_UPGRADE!"=="Y" (
+            echo [setup] Installing the latest Python via winget ...
+            winget install --id Python.Python.3.12 -e --source winget --accept-package-agreements --accept-source-agreements
+            echo.
+            echo [done] Python was installed. Please close this window and run this
+            echo        script again so the new Python is picked up.
+            echo.
+            pause
+            exit /b 0
+        ) else (
+            echo [ERROR] A newer Python is required to continue. Exiting.
+            pause
+            exit /b 1
+        )
+    ) else (
+        echo winget is not available on this system, so Python cannot be upgraded
+        echo automatically. Please install Python %MIN_MAJOR%.%MIN_MINOR% or higher manually from:
+        echo     https://www.python.org/downloads/
+        echo Tick "Add python.exe to PATH" during setup, then run this script again.
+        echo.
+        pause
+        exit /b 1
+    )
+) else (
+    echo [ok] Python %PYVER% detected.
+)
+
 REM --- 2. Create the virtual environment (first run only) ---------------
 if not exist "%PYEXE%" (
     echo [setup] Creating virtual environment in "%VENV_DIR%" ...
