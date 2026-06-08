@@ -7,6 +7,8 @@ No accounts, no cloud, no telemetry. Your data lives in a single SQLite file on 
 <!-- Add screenshots to a docs/ folder and link them here, e.g.:
 ![Dashboard](docs/dashboard.png)
 -->
+<img width="1799" height="933" alt="demo" src="https://github.com/user-attachments/assets/3cc015cd-8c53-49b6-8047-769d6f2c421e" />
+
 
 ## Features
 
