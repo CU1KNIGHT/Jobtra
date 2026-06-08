@@ -9,4 +9,4 @@ __pycache__/
 .env
 App/.env
 .idea/*
-*jobs.db
+*jobs.db.idea/
