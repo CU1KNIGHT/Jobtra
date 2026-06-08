@@ -9,7 +9,7 @@
 
 # Local data / secrets — these live on the /data volume at runtime instead.
 *.db
-App/src/jobs.db
+App/src/db/jobs.db
 App/src/db/
 secret.key
 App/secret.key

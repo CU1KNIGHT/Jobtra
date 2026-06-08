@@ -37,6 +37,37 @@
   min-width: 0;
 }
 .chart-card.span-2 { grid-column: 1 / -1; }
+
+/* Recently applied */
+.recent-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px var(--shadow);
+  margin-bottom: 18px;
+  min-width: 0;
+}
+.recent-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.recent-all { font-size: 13px; font-weight: 600; color: #7c3aed; text-decoration: none; white-space: nowrap; }
+.recent-all:hover { text-decoration: underline; }
+.recent-list { display: grid; gap: 2px; }
+.recent-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 9px 10px; border-radius: 8px;
+  text-decoration: none; color: var(--fg);
+  transition: background .12s;
+}
+.recent-item:hover { background: var(--row-hover, rgba(124,58,237,.06)); }
+.recent-main { display: flex; flex-direction: column; min-width: 0; }
+.recent-pos { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recent-co { font-size: 12px; color: var(--field-label); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recent-meta { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.recent-date { font-size: 12px; color: var(--field-label); white-space: nowrap; }
+.recent-city { font-size: 12px; color: var(--field-label); white-space: nowrap; }
+@media (max-width: 560px) {
+  .recent-city { display: none; }
+}
 .chart-title { font-size: 15px; font-weight: 700; }
 .chart-subtitle { font-size: 12px; color: var(--field-label); margin: 2px 0 12px; }
 .chart-canvas-wrap { position: relative; height: 260px; }

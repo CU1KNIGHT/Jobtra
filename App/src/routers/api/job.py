@@ -34,6 +34,8 @@ _FIELD_ALIASES = {
     "languages":      {"language", "sprachen", "sprache"},
     "job_type":       {"type", "employment_type", "employmenttype", "contract_type",
                        "anstellungsart", "beschäftigungsart", "beschaeftigungsart", "arbeitszeit"},
+    "work_mode":      {"work_arrangement", "workarrangement", "work_location", "location_type",
+                       "remote_type", "arbeitsmodell", "arbeitsort", "arbeitsform"},
     "skills":         {"tags", "keywords", "skill", "fähigkeiten", "faehigkeiten", "kenntnisse"},
     "source_url":     {"url", "link", "job_url", "posting_url", "source_link", "quelle"},
     "source_text":    {"raw", "source"},
@@ -99,10 +101,26 @@ def _normalize_job_type(value: str) -> str:
     if any(k in t for k in ("contract", "fixed-term", "temporary")) or \
             ("befristet" in t and "unbefristet" not in t):
         return "contract"
-    if any(k in t for k in ("part", "teilzeit", "minijob")):
+    if any(k in t for k in ("mini-job", "mini job", "minijob", "marginal", "geringfügig", "geringfugig")):
+        return "mini-job"
+    if any(k in t for k in ("part", "teilzeit")):
         return "part-time"
     if any(k in t for k in ("full", "vollzeit", "permanent", "unbefristet")):
         return "full-time"
+    return t  # keep unrecognized values as-is rather than dropping data
+
+
+def _normalize_work_mode(value: str) -> str:
+    """Map an imported work-arrangement string (EN/DE) to remote/hybrid/on-site."""
+    t = (value or "").strip().lower()
+    if not t:
+        return ""
+    if "hybrid" in t:
+        return "hybrid"
+    if any(k in t for k in ("remote", "home office", "homeoffice", "work from home", "telearbeit", "fernarbeit")):
+        return "remote"
+    if any(k in t for k in ("on-site", "on site", "onsite", "office", "vor ort", "präsenz", "praesenz")):
+        return "on-site"
     return t  # keep unrecognized values as-is rather than dropping data
 
 
@@ -199,6 +217,8 @@ async def import_jobs(file: UploadFile = File(...)):
         clean["status"] = _normalize_status(clean.get("status"))
         if clean.get("job_type"):
             clean["job_type"] = _normalize_job_type(clean["job_type"])
+        if clean.get("work_mode"):
+            clean["work_mode"] = _normalize_work_mode(clean["work_mode"])
         try:
             job = JobInput(**clean)
         except ValidationError as e:

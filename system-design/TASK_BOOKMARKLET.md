@@ -18,7 +18,7 @@ Tradeoff vs. the existing paste-and-parse flow: the bookmarklet **saves immediat
 
 **One-time setup** (Settings page):
 
-1. User opens `http://localhost:8000/settings`.
+1. User opens `http://localhost:8001/settings`.
 2. Sees a "Browser bookmark" section with a draggable link labeled "➕ Add to Job Tracker".
 3. Shows their bookmarks bar (Ctrl+Shift+B / Cmd+Shift+B).
 4. Drags the link onto the bookmarks bar.
@@ -71,7 +71,7 @@ Errors map to the same shape as `/api/parse`:
 
 ### CORS configuration
 
-The bookmarklet runs on third-party origins (`https://www.linkedin.com`, `https://stepstone.de`, etc.) and POSTs to `http://localhost:8000`. The browser blocks this by default.
+The bookmarklet runs on third-party origins (`https://www.linkedin.com`, `https://stepstone.de`, etc.) and POSTs to `http://localhost:8001`. The browser blocks this by default.
 
 Add CORS middleware in `server.py`:
 
@@ -114,7 +114,7 @@ New section in `settings.html`, below the provider/model section:
 │ Show bookmarks bar: Ctrl+Shift+B (Windows/Linux) /      │
 │ Cmd+Shift+B (Mac).                                      │
 │                                                         │
-│ Requires the tracker to be running at localhost:8000.   │
+│ Requires the tracker to be running at localhost:8001.   │
 │ Tested in Chrome and Firefox. Safari may block it.      │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -123,7 +123,7 @@ The link's `href` is the URL-encoded bookmarklet code. Its display text shows wh
 
 ### The bookmarklet code
 
-The bookmarklet must hit the same host:port the backend is running on. Don't hardcode `localhost:8000`. The Settings page injects the configured `BASE_URL` into the JS at render time.
+The bookmarklet must hit the same host:port the backend is running on. Don't hardcode `localhost:8001`. The Settings page injects the configured `BASE_URL` into the JS at render time.
 
 Source (write this readable, then minify and URL-encode for the `href`):
 
@@ -144,7 +144,7 @@ Source (write this readable, then minify and URL-encode for the `href`):
   document.body.appendChild(toast);
 
   try {
-    // __BASE_URL__ is replaced at render time with e.g. "http://127.0.0.1:8000"
+    // __BASE_URL__ is replaced at render time with e.g. "http://127.0.0.1:8001"
     const r = await fetch('__BASE_URL__/api/parse-from-bookmarklet', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -170,7 +170,7 @@ Source (write this readable, then minify and URL-encode for the `href`):
 
 To turn this into the bookmarklet href:
 
-1. Substitute `__BASE_URL__` with the actual base URL the backend is serving on (e.g. `http://127.0.0.1:8000`).
+1. Substitute `__BASE_URL__` with the actual base URL the backend is serving on (e.g. `http://127.0.0.1:8001`).
 2. Strip comments and minify (or keep as-is — bookmarks have generous size limits).
 3. URL-encode the whole thing.
 4. Prefix with `javascript:`.
@@ -180,7 +180,7 @@ Two options for the substitution:
 
 **Option A — server-side template** (recommended). `settings.html` is served by a route that templates `BASE_URL` into the page before returning it. Simplest is to read the HTML file, do a string replace, return as `HTMLResponse`. Or use Jinja2 if it's already in the project (it isn't, so don't add it just for this).
 
-**Option B — client-side build**. Settings page hits a small new endpoint `GET /api/config` returning `{ base_url: "http://127.0.0.1:8000" }`, then JS builds the bookmarklet `href` from that. One extra request but keeps `settings.html` as a static file.
+**Option B — client-side build**. Settings page hits a small new endpoint `GET /api/config` returning `{ base_url: "http://127.0.0.1:8001" }`, then JS builds the bookmarklet `href` from that. One extra request but keeps `settings.html` as a static file.
 
 Pick Option A for fewer moving parts.
 
@@ -188,7 +188,7 @@ Pick Option A for fewer moving parts.
 # In server.py
 import os
 HOST = os.getenv("HOST", "127.0.0.1")
-PORT = int(os.getenv("PORT", "8000"))
+PORT = int(os.getenv("PORT", "8001"))
 BASE_URL = f"http://{HOST}:{PORT}"
 
 @app.get("/settings", response_class=HTMLResponse)
@@ -218,7 +218,7 @@ The bookmarklet snapshots the URL at the moment it's dragged to the bookmarks ba
 Add an inline note in the Settings page under the bookmark section:
 
 ```
-Note: this bookmark calls http://127.0.0.1:8000. If you change the
+Note: this bookmark calls http://127.0.0.1:8001. If you change the
 PORT in .env later, re-drag this bookmark to update it.
 ```
 

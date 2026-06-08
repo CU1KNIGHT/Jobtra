@@ -13,6 +13,10 @@ const STATUS_COLOR = {
   rejected: '#ef4444', accepted: '#22c55e', open: '#9ca3af',
 };
 const PURPLE_RAMP = ['#6d28d9', '#7c3aed', '#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe'];
+const FULL_STATUS_LABEL = {
+  open: 'Open', applied: 'Applied', interview_done: 'Interview done',
+  rejected: 'Rejected', rejected_after_interview: 'Rejected after interview', accepted: 'Accepted',
+};
 
 function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
 function themeColors() {
@@ -58,7 +62,7 @@ function render() {
   const total = dashData.summary.total;
 
   if (total < 3) {
-    c.innerHTML = `<div class="dash-empty">Add more applications to see your dashboard.<br>
+    c.innerHTML = recentCard() + `<div class="dash-empty">Add more applications to see your dashboard.<br>
       <span style="font-size:13px">(${total} so far — charts appear at 3+.)</span></div>`;
     return;
   }
@@ -73,6 +77,7 @@ function render() {
       ${kpi('Interviews done', s.interviews, `${convRate}% interview rate`)}
       ${kpi('Rejection rate', `${Math.round(s.rejection_rate * 100)}%`, 'rejected + after interview')}
     </div>
+    ${recentCard()}
     <div class="chart-grid">
       ${chartCard('Monthly applications', 'Applications submitted per month', 'monthChart')}
       ${chartCard('Status distribution', 'Where all applications stand', 'statusChart')}
@@ -95,6 +100,33 @@ function render() {
   renderType();
   renderMap();
   renderTreemap();
+}
+
+function recentCard() {
+  const recent = (dashData && dashData.recent) || [];
+  if (!recent.length) return '';
+  const rows = recent.map(j => {
+    const status = `<span class="pill pill-${j.status}">${FULL_STATUS_LABEL[j.status] || j.status}</span>`;
+    const date = j.date_applied ? `<span class="recent-date">${esc(j.date_applied)}</span>` : '';
+    const city = j.city ? `<span class="recent-city">&#128205; ${esc(j.city)}</span>` : '';
+    return `<a class="recent-item" href="/jobs/${j.id}">
+      <span class="recent-main">
+        <span class="recent-pos">${esc(j.position) || '—'}</span>
+        <span class="recent-co">${esc(j.company) || ''}</span>
+      </span>
+      <span class="recent-meta">${status}${date}${city}</span>
+    </a>`;
+  }).join('');
+  return `<div class="recent-card">
+    <div class="recent-head">
+      <div>
+        <div class="chart-title">Recently applied</div>
+        <div class="chart-subtitle">Your latest applications</div>
+      </div>
+      <a class="recent-all" href="/jobs">View all &#8594;</a>
+    </div>
+    <div class="recent-list">${rows}</div>
+  </div>`;
 }
 
 function kpi(label, value, sub) {

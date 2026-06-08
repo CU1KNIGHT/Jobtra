@@ -5,7 +5,7 @@ def test_get_settings_returns_defaults(client):
     assert data["provider"] == "ollama"
     assert data["model"] == "llama3.1:8b"
     assert "providers" in data
-    assert set(data["providers"]) == {"ollama", "anthropic", "openai"}
+    assert set(data["providers"]) == {"ollama", "lmstudio", "anthropic", "openai"}
     assert "key_status" in data
 
 

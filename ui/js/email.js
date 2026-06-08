@@ -135,12 +135,14 @@ function setFilter(val) {
 
 function updatePillCounts() {
   const counts = {};
+  let sent = 0;
   for (const m of messages) {
     counts[m.relevance] = (counts[m.relevance] || 0) + 1;
+    if (m.direction === 'outgoing') sent++;
   }
   document.querySelectorAll('#filterPills .filter-pill').forEach(btn => {
     const f = btn.dataset.filter;
-    const n = f === '' ? messages.length : (counts[f] || 0);
+    const n = f === '' ? messages.length : (f === 'sent' ? sent : (counts[f] || 0));
     const existing = btn.querySelector('.pill-count');
     if (existing) existing.remove();
     if (n > 0) {
@@ -155,7 +157,9 @@ function updatePillCounts() {
 function filtered() {
   const q = document.getElementById('searchInput').value.toLowerCase();
   return messages.filter(m => {
-    if (activeFilter && m.relevance !== activeFilter) return false;
+    if (activeFilter === 'sent') {
+      if (m.direction !== 'outgoing') return false;
+    } else if (activeFilter && m.relevance !== activeFilter) return false;
     if (q) {
       const inSubject = (m.subject || '').toLowerCase().includes(q);
       const inSender  = (m.sender  || '').toLowerCase().includes(q);
@@ -186,9 +190,12 @@ function render() {
   container.innerHTML = pageItems.map(m => {
     const isExpanded = m.id === expandedId;
     const isProcessing = processingIds.has(m.id);
-    const dot = `<div class="relevance-dot dot-${m.relevance}"></div>`;
+    const isOutgoing = m.direction === 'outgoing';
+    const dot = `<div class="relevance-dot ${isOutgoing ? 'dot-sent' : 'dot-' + m.relevance}"></div>`;
 
     let badge = '';
+    if (isOutgoing) badge = '<span class="status-badge badge-sent">Sent</span>';
+    else
     if (m.relevance === 'pending')    badge = '<span class="status-badge badge-pending">pending</span>';
     else if (m.relevance === 'irrelevant') badge = '<span class="status-badge badge-irrelevant">irrelevant</span>';
     else if (m.relevance === 'error') badge = '<span class="status-badge badge-error">error</span>';
@@ -203,7 +210,7 @@ function render() {
       : '';
 
     const isProcessed = m.relevance === 'relevant' || m.relevance === 'irrelevant';
-    const processBtn = `<button class="btn btn-secondary btn-sm" onclick="processSingle(${m.id},event)"
+    const processBtn = isOutgoing ? '' : `<button class="btn btn-secondary btn-sm" onclick="processSingle(${m.id},event)"
            ${isProcessing ? 'disabled' : ''} title="${isProcessed ? 'Re-process with LLM' : 'Process with LLM'}">
            ${isProcessing
              ? '<span class="spinner">&#9696;</span>'
@@ -211,6 +218,7 @@ function render() {
          </button>`;
 
     const date = m.received_at ? new Date(m.received_at).toLocaleDateString() : '';
+    const who = isOutgoing ? `To: ${esc(m.sender)}` : esc(m.sender);
 
     return `
       <div class="msg-row ${isExpanded ? 'expanded' : ''}" id="row-${m.id}">
@@ -218,7 +226,7 @@ function render() {
           ${dot}
           <div class="msg-meta">
             <div class="msg-subject">${esc(m.subject || '(no subject)')}</div>
-            <div class="msg-from-date">${esc(m.sender)} &middot; ${date}</div>
+            <div class="msg-from-date">${who} &middot; ${date}</div>
           </div>
           <div class="msg-actions" onclick="event.stopPropagation()">
             ${linkedBadge}

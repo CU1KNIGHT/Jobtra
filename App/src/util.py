@@ -1,7 +1,7 @@
 from pydantic import BaseModel, field_validator
 
 VALID_STATUSES = {"open", "applied", "interview_done", "rejected", "rejected_after_interview", "accepted"}
-VALID_PROVIDERS = ["ollama", "anthropic", "openai"]
+VALID_PROVIDERS = ["ollama", "lmstudio", "anthropic", "openai"]
 
 class JobInput(BaseModel):
     position: str
@@ -18,6 +18,7 @@ class JobInput(BaseModel):
     hours_per_week: str = ""
     languages: str = ""
     job_type: str = ""
+    work_mode: str = ""
     skills: str = ""
     source_url: str = ""
     source_text: str = ""

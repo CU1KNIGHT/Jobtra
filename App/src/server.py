@@ -62,3 +62,11 @@ app.include_router(accounts.router)
 app.include_router(dashboard.router)
 
 app.mount("/static", StaticFiles(directory=UI_DIR), name="static")
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    from config import HOST, PORT
+
+    uvicorn.run(app, host=HOST, port=PORT)

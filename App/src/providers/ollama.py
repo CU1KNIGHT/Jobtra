@@ -11,12 +11,15 @@ OLLAMA_URL = "http://localhost:11434"
 class OllamaProvider:
     name = "ollama"
 
+    def __init__(self, base_url: str = None):
+        self.base_url = (base_url or "").rstrip("/") or OLLAMA_URL
+
     async def parse(self, text: str, model: str) -> dict:
         prompt = EXTRACTION_PROMPT + f"\n\nJob posting:\n<<<\n{text}\n>>>"
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 resp = await client.post(
-                    f"{OLLAMA_URL}/api/generate",
+                    f"{self.base_url}/api/generate",
                     json={
                         "model": model,
                         "prompt": prompt,
@@ -45,7 +48,7 @@ class OllamaProvider:
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 resp = await client.post(
-                    f"{OLLAMA_URL}/api/chat",
+                    f"{self.base_url}/api/chat",
                     json={
                         "model": model,
                         "messages": [
@@ -71,7 +74,7 @@ class OllamaProvider:
     async def list_models(self) -> list[str]:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(f"{OLLAMA_URL}/api/tags")
+                resp = await client.get(f"{self.base_url}/api/tags")
         except httpx.ConnectError:
             raise ProviderUnavailable("Ollama is not running")
         except httpx.TimeoutException:

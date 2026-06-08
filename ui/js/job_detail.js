@@ -3,11 +3,19 @@ const JOB_ID = parseInt(location.pathname.split('/').pop(), 10);
 
 let job = null;
 let pendingFile = null;
+let emailMessages = [];
 
 const STATUS_LABELS = {
   open: 'Open', applied: 'Applied', interview_done: 'Interview done',
   rejected: 'Rejected', rejected_after_interview: 'Rejected after interview', accepted: 'Accepted',
 };
+
+const JOB_TYPE_LABELS = {
+  'full-time': 'Full-time', 'part-time': 'Part-time', 'mini-job': 'Mini-job',
+  contract: 'Contract', internship: 'Internship', freelance: 'Freelance',
+};
+
+const WORK_MODE_LABELS = { remote: 'Remote', hybrid: 'Hybrid', 'on-site': 'On-site' };
 
 function fmt(n) {
   if (!n) return '—';
@@ -28,7 +36,10 @@ async function loadJob() {
   const res = await fetch(`${BASE}/api/jobs/${JOB_ID}`);
   if (!res.ok) { document.body.innerHTML = '<p style="padding:32px;color:#dc2626">Job not found.</p>'; return; }
   job = await res.json();
+  renderJob();
+}
 
+function renderJob() {
   document.title = `${job.position} @ ${job.company}`;
   document.getElementById('hPosition').textContent = job.position;
   document.getElementById('hCompany').textContent = job.company;
@@ -38,12 +49,13 @@ async function loadJob() {
   pill.className = `pill pill-${job.status}`;
 
   document.getElementById('statusSelect').value = job.status;
-  document.getElementById('editLink').href = `/?edit=${JOB_ID}`;
 
   document.getElementById('iDate').textContent       = job.date_applied || '—';
   document.getElementById('iCity').textContent       = job.city || '—';
   document.getElementById('iAddress').textContent    = job.address || '—';
   document.getElementById('iHours').textContent      = job.hours_per_week || '—';
+  document.getElementById('iJobType').textContent    = JOB_TYPE_LABELS[job.job_type] || job.job_type || '—';
+  document.getElementById('iWorkMode').textContent   = WORK_MODE_LABELS[job.work_mode] || job.work_mode || '—';
   document.getElementById('iLanguages').textContent  = job.languages || '—';
   document.getElementById('iHrEmail').textContent    = job.hr_email || '—';
   document.getElementById('iHrPhone').textContent    = job.hr_phone || '—';
@@ -94,9 +106,69 @@ async function changeStatus() {
   showToast('Status updated');
 }
 
+const EDIT_FIELDS = [
+  'position', 'company', 'date_applied', 'city', 'address', 'hours_per_week',
+  'job_type', 'work_mode', 'languages', 'hr_email', 'hr_phone',
+  'whatsapp', 'telegram', 'source_url', 'skills', 'description',
+];
+
+function enterEditMode() {
+  EDIT_FIELDS.forEach(f => {
+    document.getElementById(`e-${f}`).value = job[f] || '';
+  });
+  document.getElementById('editError').textContent = '';
+  document.getElementById('infoGrid').style.display = 'none';
+  document.getElementById('editGrid').style.display = 'grid';
+  document.getElementById('editBtn').style.display = 'none';
+}
+
+function cancelEdit() {
+  document.getElementById('editGrid').style.display = 'none';
+  document.getElementById('infoGrid').style.display = 'grid';
+  document.getElementById('editBtn').style.display = '';
+}
+
+async function saveEdit(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('editError');
+  errEl.textContent = '';
+
+  const payload = { ...job };
+  EDIT_FIELDS.forEach(f => {
+    payload[f] = document.getElementById(`e-${f}`).value.trim();
+  });
+
+  let res;
+  try {
+    res = await fetch(`${BASE}/api/jobs/${JOB_ID}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    errEl.textContent = 'Network error: ' + err.message;
+    return;
+  }
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const detail = err.detail;
+    errEl.textContent = Array.isArray(detail)
+      ? detail.map(d => d.msg).join('; ')
+      : (detail || 'Failed to save');
+    return;
+  }
+
+  job = await res.json();
+  renderJob();
+  cancelEdit();
+  showToast('Job updated');
+}
+
 async function loadEmails() {
   const res = await fetch(`${BASE}/api/email/messages?job_id=${JOB_ID}`);
   const msgs = res.ok ? await res.json() : [];
+  emailMessages = msgs;
   const section = document.getElementById('emailSection');
   const countEl = document.getElementById('emailCount');
 
@@ -110,17 +182,22 @@ async function loadEmails() {
 
   const rows = msgs.map(m => {
     const preview = (m.body_text || '').slice(0, 120).replace(/\s+/g, ' ');
-    const relClass = `relevance-${m.relevance}`;
+    const isOutgoing = m.direction === 'outgoing';
+    const who = isOutgoing ? `To: ${esc(m.sender)}` : esc(m.sender);
     const status = m.llm_status ? `<span class="pill pill-${m.llm_status}" style="font-size:11px;padding:1px 8px">${esc(m.llm_status)}</span>` : '';
+    const statusCell = isOutgoing
+      ? '<span class="email-tag-sent">↗ Sent</span>'
+      : `<span class="relevance-${m.relevance}">${m.relevance}</span>${status ? ' ' + status : ''}`;
     return `<tr>
       <td>
-        <div class="email-subject">${esc(m.subject) || '(no subject)'}</div>
-        <div class="email-sender">${esc(m.sender)}</div>
+        <div class="email-subject email-open" onclick="openEmail(${m.id})" title="Open email">${esc(m.subject) || '(no subject)'}</div>
+        <div class="email-sender">${who}</div>
         ${preview ? `<div class="email-preview">${esc(preview)}…</div>` : ''}
       </td>
       <td style="white-space:nowrap">${(m.received_at || '').slice(0,10)}</td>
-      <td><span class="${relClass}">${m.relevance}</span>${status ? ' ' + status : ''}</td>
+      <td>${statusCell}</td>
       <td style="white-space:nowrap">
+        <button class="btn btn-secondary btn-sm" onclick="openEmail(${m.id})">Open</button>
         <button class="btn btn-secondary btn-sm" onclick="unlinkEmail(${m.id})">Unlink</button>
       </td>
     </tr>`;
@@ -139,6 +216,22 @@ async function unlinkEmail(msgId) {
   if (!res.ok) { showToast('Failed to unlink email'); return; }
   showToast('Email unlinked');
   loadEmails();
+}
+
+function openEmail(msgId) {
+  const m = emailMessages.find(x => x.id === msgId);
+  if (!m) return;
+  const date = m.received_at ? new Date(m.received_at).toLocaleString() : '—';
+  document.getElementById('emailDialogSubject').textContent = m.subject || '(no subject)';
+  document.getElementById('emailDialogFromLabel').textContent = m.direction === 'outgoing' ? 'To' : 'From';
+  document.getElementById('emailDialogFrom').textContent = m.sender || '—';
+  document.getElementById('emailDialogDate').textContent = date;
+  document.getElementById('emailDialogBody').textContent = m.body_text || '(no content)';
+  document.getElementById('emailDialog').showModal();
+}
+
+function closeEmail() {
+  document.getElementById('emailDialog').close();
 }
 
 async function loadDocuments() {

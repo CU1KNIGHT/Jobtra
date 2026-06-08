@@ -73,6 +73,8 @@ async def process_single_email(msg_id: int):
     msg = db.get_email_message(msg_id)
     if msg is None:
         raise HTTPException(404, "Message not found")
+    if msg.get("direction") == "outgoing":
+        raise HTTPException(400, "Sent emails aren't classified; link them to a job manually.")
     model, provider_name = _email_model_provider()
     try:
         result = await email_sync.process_email_with_llm(msg, model, provider_name)

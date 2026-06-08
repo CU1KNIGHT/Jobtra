@@ -50,10 +50,14 @@ if [ ! -f ".env" ] && [ -f ".env.example" ]; then
     cp ".env.example" ".env"
 fi
 
-# --- 4. Open the browser shortly after the server starts ---------------
+# --- 4. Resolve the URL from config (single source of truth) -----------
+cd "App/src"
+PYBIN="../../$VENV_DIR/bin/python"
+URL="$("$PYBIN" -c "from config import BASE_URL; print(BASE_URL)")"
+
+# --- 5. Open the browser shortly after the server starts ---------------
 open_browser() {
     sleep 3
-    URL="http://localhost:8000"
     if command -v xdg-open >/dev/null 2>&1; then
         xdg-open "$URL" >/dev/null 2>&1 || true   # Linux
     elif command -v open >/dev/null 2>&1; then
@@ -62,11 +66,10 @@ open_browser() {
 }
 open_browser &
 
-# --- 5. Start the server ----------------------------------------------
+# --- 6. Start the server ----------------------------------------------
 echo
-echo "[run] Starting Jobtra at http://localhost:8000"
+echo "[run] Starting Jobtra at $URL"
 echo "      (Press Ctrl+C to stop the app.)"
 echo
 
-cd "App/src"
-exec "../../$VENV_DIR/bin/python" -m uvicorn server:app --host 127.0.0.1 --port 8000
+exec "$PYBIN" server.py

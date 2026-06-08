@@ -16,7 +16,7 @@ The system keeps a single source of truth: a SQLite database on the user's machi
 
 ```
 ┌───────────────────────────────────────────────────────────────────────┐
-│  Browser (localhost:8000)                                             │
+│  Browser (localhost:8001)                                             │
 │                                                                       │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────────┐ │
 │  │ Tracker  │  │ Settings │  │  Email   │  │ Bookmarklet (runs on  │ │
@@ -197,13 +197,13 @@ Re-parse: any job row with a non-null `source_text` shows a ↻ button. Clicking
 
 **Problem it solves**: LinkedIn, Xing, StepStone, and most ATS portals require login and render via JS. The backend's `httpx.get(url)` only sees a login wall. The bookmarklet runs *inside the user's already-authenticated tab*, reads `document.body.innerText`, and POSTs it to the local backend. No credentials ever leave the browser.
 
-**Setup (one-time)**: User visits `http://localhost:8000/settings`, finds the "Browser bookmark" section, and drags the "➕ Add to Job Tracker" link to their bookmarks bar.
+**Setup (one-time)**: User visits `http://localhost:8001/settings`, finds the "Browser bookmark" section, and drags the "➕ Add to Job Tracker" link to their bookmarks bar.
 
 **Daily use**: On any job posting, click the bookmark. A toast appears bottom-right: "Saving…" → "✓ Saved: \<position\> at \<company\>". No preview — saves immediately. User edits via the row's edit button if needed.
 
 **Important**: The bookmarklet `href` is generated server-side with `__BASE_URL__` substituted to the actual `HOST:PORT` the server is running on. If the user changes `PORT` in `.env`, they must re-drag the bookmark from `/settings`.
 
-**CORS requirement**: Because the bookmarklet runs on `https://www.linkedin.com` and POSTs to `http://localhost:8000`, browsers would block the request by default. `CORSMiddleware` with `allow_origins=["*"]` is added to the FastAPI app. This is safe because the app is local-only with no authentication surface to protect.
+**CORS requirement**: Because the bookmarklet runs on `https://www.linkedin.com` and POSTs to `http://localhost:8001`, browsers would block the request by default. `CORSMiddleware` with `allow_origins=["*"]` is added to the FastAPI app. This is safe because the app is local-only with no authentication surface to protect.
 
 **Endpoint**: `POST /api/parse-from-bookmarklet`
 
@@ -468,7 +468,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 
 HOST = os.getenv("HOST", "127.0.0.1")
-PORT = int(os.getenv("PORT", "8000"))
+PORT = int(os.getenv("PORT", "8001"))
 BASE_URL = f"http://{HOST}:{PORT}"
 
 app = FastAPI()
@@ -751,7 +751,7 @@ Email processing triggers automatic status transitions only when `confidence >= 
 
 # Server
 HOST=127.0.0.1          # Change to 0.0.0.0 to expose on LAN (not recommended)
-PORT=8000
+PORT=8001
 
 # Default LLM provider (can be overridden in settings UI)
 LLM_PROVIDER=ollama     # ollama | openai | anthropic

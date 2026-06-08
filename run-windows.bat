@@ -118,16 +118,21 @@ if not exist ".env" (
 )
 
 REM --- 4. Start the server and open the browser -------------------------
+cd "App\src"
+set "PYBIN=..\..\%VENV_DIR%\Scripts\python.exe"
+
+REM Resolve the URL from config (single source of truth)
+for /f "delims=" %%U in ('"%PYBIN%" -c "from config import BASE_URL; print(BASE_URL)"') do set "URL=%%U"
+
 echo.
-echo [run] Starting Jobtra at http://localhost:8000
+echo [run] Starting Jobtra at %URL%
 echo       (Close this window or press Ctrl+C to stop the app.)
 echo.
 
 REM Open the browser shortly after the server starts
-start "" cmd /c "timeout /t 3 >nul & start http://localhost:8000"
+start "" cmd /c "timeout /t 3 >nul & start %URL%"
 
-cd "App\src"
-"..\..\%VENV_DIR%\Scripts\python.exe" -m uvicorn server:app --host 127.0.0.1 --port 8000
+"%PYBIN%" server.py
 
 echo.
 echo [stopped] Jobtra has stopped.

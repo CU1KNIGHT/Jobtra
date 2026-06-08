@@ -60,6 +60,7 @@ header { margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
 .dot-relevant   { background: #22c55e; }
 .dot-irrelevant { background: #d1d5db; }
 .dot-error      { background: #ef4444; }
+.dot-sent       { background: #8b5cf6; }
 
 .msg-meta { flex: 1; min-width: 0; }
 .msg-subject { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
@@ -76,6 +77,8 @@ header { margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
 .badge-application { background: #dbeafe; color: #1d4ed8; }
 .badge-other, .badge-pending, .badge-irrelevant { background: #f3f4f6; color: #6b7280; }
 .badge-error       { background: #fee2e2; color: #b91c1c; }
+.badge-sent        { background: #ede9fe; color: #6d28d9; }
+[data-theme="dark"] .badge-sent { background: #2e1065; color: #c4b5fd; }
 [data-theme="dark"] .badge-rejection   { background: #450a0a; color: #fca5a5; }
 [data-theme="dark"] .badge-interview   { background: #422006; color: #fcd34d; }
 [data-theme="dark"] .badge-offer       { background: #14532d; color: #86efac; }

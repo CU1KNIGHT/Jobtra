@@ -36,7 +36,7 @@
   <div class="card">
     <div class="card-header">
       <h2>Job Details</h2>
-      <a id="editLink" class="btn btn-secondary btn-sm" href="#">Edit</a>
+      <button id="editBtn" class="btn btn-secondary btn-sm" onclick="enterEditMode()">Edit</button>
     </div>
     <div class="card-body">
       <div class="info-grid" id="infoGrid">
@@ -44,6 +44,8 @@
         <div class="info-field"><label>City</label><span id="iCity">—</span></div>
         <div class="info-field"><label>Address</label><span id="iAddress">—</span></div>
         <div class="info-field"><label>Hours / week</label><span id="iHours">—</span></div>
+        <div class="info-field"><label>Job type</label><span id="iJobType">—</span></div>
+        <div class="info-field"><label>Work mode</label><span id="iWorkMode">—</span></div>
         <div class="info-field"><label>Languages</label><span id="iLanguages">—</span></div>
         <div class="info-field"><label>HR Email</label><span id="iHrEmail">—</span></div>
         <div class="info-field"><label>HR Phone</label><span id="iHrPhone">—</span></div>
@@ -52,6 +54,47 @@
         <div class="info-field full"><label>Skills</label><div class="skills-list" id="iSkills"></div></div>
         <div class="info-field full"><label>Description</label><pre id="iDescription">—</pre></div>
       </div>
+
+      <form class="edit-grid" id="editGrid" style="display:none" onsubmit="saveEdit(event)">
+        <div class="edit-field"><label>Position</label><input type="text" id="e-position"></div>
+        <div class="edit-field"><label>Company</label><input type="text" id="e-company"></div>
+        <div class="edit-field"><label>Date applied</label><input type="date" id="e-date_applied"></div>
+        <div class="edit-field"><label>City</label><input type="text" id="e-city"></div>
+        <div class="edit-field"><label>Address</label><input type="text" id="e-address"></div>
+        <div class="edit-field"><label>Hours / week</label><input type="text" id="e-hours_per_week"></div>
+        <div class="edit-field"><label>Job type</label>
+          <select id="e-job_type">
+            <option value="">— Unspecified —</option>
+            <option value="full-time">Full-time</option>
+            <option value="part-time">Part-time</option>
+            <option value="mini-job">Mini-job</option>
+            <option value="contract">Contract</option>
+            <option value="internship">Internship</option>
+            <option value="freelance">Freelance</option>
+          </select>
+        </div>
+        <div class="edit-field"><label>Work mode</label>
+          <select id="e-work_mode">
+            <option value="">— Unspecified —</option>
+            <option value="remote">Remote</option>
+            <option value="hybrid">Hybrid</option>
+            <option value="on-site">On-site</option>
+          </select>
+        </div>
+        <div class="edit-field"><label>Languages</label><input type="text" id="e-languages"></div>
+        <div class="edit-field"><label>HR Email</label><input type="text" id="e-hr_email"></div>
+        <div class="edit-field"><label>HR Phone</label><input type="text" id="e-hr_phone"></div>
+        <div class="edit-field"><label>WhatsApp</label><input type="text" id="e-whatsapp"></div>
+        <div class="edit-field"><label>Telegram</label><input type="text" id="e-telegram"></div>
+        <div class="edit-field full"><label>Source URL</label><input type="text" id="e-source_url"></div>
+        <div class="edit-field full"><label>Skills (comma-separated)</label><input type="text" id="e-skills" placeholder="e.g. Python, FastAPI, PostgreSQL"></div>
+        <div class="edit-field full"><label>Description</label><textarea id="e-description" rows="6"></textarea></div>
+        <div class="edit-actions full">
+          <span class="edit-error" id="editError"></span>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="cancelEdit()">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -101,6 +144,21 @@
   </div>
 
 </div>
+
+<!-- Email viewer -->
+<dialog id="emailDialog" class="email-dialog">
+  <div class="dialog-header" id="emailDialogSubject">—</div>
+  <div class="dialog-body">
+    <div class="email-dialog-meta">
+      <div><label id="emailDialogFromLabel">From</label><span id="emailDialogFrom">—</span></div>
+      <div><label>Date</label><span id="emailDialogDate">—</span></div>
+    </div>
+    <pre class="email-dialog-body" id="emailDialogBody"></pre>
+  </div>
+  <div class="dialog-footer">
+    <button class="btn btn-secondary btn-sm" onclick="closeEmail()">Close</button>
+  </div>
+</dialog>
 
 <div class="toast" id="toast"></div>
 

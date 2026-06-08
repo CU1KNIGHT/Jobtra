@@ -1,4 +1,4 @@
-App/src/jobs.db
+App/src/db/jobs.db
 App/src/secret.key
 secret.key
 .venv/

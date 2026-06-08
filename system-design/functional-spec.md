@@ -161,7 +161,7 @@ cp App/.env.example App/src/.env
 
 ```
 HOST=127.0.0.1        # default
-PORT=8000             # default; changing it requires re-dragging the bookmarklet
+PORT=8001             # default; changing it requires re-dragging the bookmarklet
 DOCS_DIR=~/.job-tracker/docs
 ANTHROPIC_API_KEY=... # optional, for Anthropic provider
 OPENAI_API_KEY=...    # optional, for OpenAI provider
@@ -174,7 +174,7 @@ cd App/src
 uvicorn server:app --reload
 ```
 
-Open `http://localhost:8000`. `jobs.db` is created automatically on first run.
+Open `http://localhost:8001`. `jobs.db` is created automatically on first run.
 
 ### 5.5 Backup
 

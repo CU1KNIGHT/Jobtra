@@ -30,7 +30,7 @@ A minimal web app to track job applications. CRUD on a list of jobs, displayed i
 | LLM      | Ollama / Anthropic / OpenAI     | Provider picked at runtime; all called via HTTP           |
 | Config   | `.env` for keys, SQLite for choices | Keys out of the DB; user prefs persist across restarts |
 | Frontend | One `index.html` with vanilla JS | No build, no framework, no node_modules                   |
-| Serving  | FastAPI serves the HTML + API   | One process, one port (default 8000)                      |
+| Serving  | FastAPI serves the HTML + API   | One process, one port (default 8001)                      |
 
 Dependencies: `fastapi`, `uvicorn`, `httpx`, `python-dotenv`. That's it.
 
@@ -486,14 +486,14 @@ You only need to set up the providers you'll actually use. The app starts fine w
 ```
 # Server
 HOST=127.0.0.1
-PORT=8000
+PORT=8001
 
 # Fill in only the providers you'll use.
 ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
 ```
 
-`server.py` reads `HOST` and `PORT` from env (defaulting to `127.0.0.1` and `8000`) and exposes them as a constant `BASE_URL` for templating into HTML (used by the Settings page for the bookmarklet).
+`server.py` reads `HOST` and `PORT` from env (defaulting to `127.0.0.1` and `8001`) and exposes them as a constant `BASE_URL` for templating into HTML (used by the Settings page for the bookmarklet).
 
 `README.md` should document:
 
@@ -504,7 +504,7 @@ ollama serve              # leave running in its own terminal
 
 # 2. (Optional) Add API keys to .env
 cp .env.example .env
-# then edit .env — set PORT here too if 8000 is taken
+# then edit .env — set PORT here too if 8001 is taken
 
 # 3. Run the app
 python -m venv .venv
@@ -512,8 +512,8 @@ source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn server:app --reload --host $HOST --port $PORT
 # or just: uvicorn server:app --reload   (uses env vars if set)
-# open http://localhost:8000   (or whatever PORT you set)
-# settings page: http://localhost:8000/settings
+# open http://localhost:8001   (or whatever PORT you set)
+# settings page: http://localhost:8001/settings
 ```
 
 The SQLite file `jobs.db` is created on first run if absent. Back up by copying it. Reset by deleting it.

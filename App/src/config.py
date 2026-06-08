@@ -9,12 +9,12 @@ UI_DIR = ROOT_DIR / "ui"
 
 # App version, read from the VERSION file at the project root.
 try:
-    VERSION = (ROOT_DIR / "VERSION").read_text().strip()
+    VERSION = (ROOT_DIR / "VERSION").read_text(encoding="utf-8").strip()
 except OSError:
     VERSION = "0.0.0"
 
 HOST = os.getenv("HOST", "127.0.0.1")
-PORT = int(os.getenv("PORT", "8000"))
+PORT = int(os.getenv("PORT", "8001"))
 BASE_URL = f"http://{HOST}:{PORT}"
 
 DOCS_DIR = Path(os.path.expanduser(os.getenv("DOCS_DIR", "~/.jobtra/docs")))

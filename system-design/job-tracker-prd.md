@@ -426,12 +426,12 @@ All fields are computed with SQLite `GROUP BY` queries; no external services req
 | Variable | Default | Notes |
 |---|---|---|
 | `HOST` | `127.0.0.1` | Bind address |
-| `PORT` | `8000` | Changing requires re-dragging the bookmarklet (the bookmarklet URL embeds the port) |
+| `PORT` | `8001` | Changing requires re-dragging the bookmarklet (the bookmarklet URL embeds the port) |
 | `DOCS_DIR` | `~/.job-tracker/docs` | Directory for uploaded files |
 | `ANTHROPIC_API_KEY` | _(none)_ | Required only for Anthropic provider |
 | `OPENAI_API_KEY` | _(none)_ | Required only for OpenAI provider |
 
-Run: `uvicorn server:app --reload` (from `App/src`), then open `http://localhost:8000`. `jobs.db` is created on first run; back up by copying the file.
+Run: `uvicorn server:app --reload` (from `App/src`), then open `http://localhost:8001`. `jobs.db` is created on first run; back up by copying the file.
 
 ---
 

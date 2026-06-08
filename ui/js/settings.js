@@ -1,9 +1,14 @@
 let currentProvider = 'ollama';
 let currentModel = '';
 let keyStatus = {};
+// Per-provider base URLs for the local providers (editable on this page).
+let providerUrls = {};
 
-const PROVIDER_LABELS = { ollama: 'Ollama', anthropic: 'Anthropic Claude', openai: 'OpenAI' };
-const KEY_HINTS = { ollama: null, anthropic: 'ANTHROPIC_API_KEY', openai: 'OPENAI_API_KEY' };
+const PROVIDER_LABELS = { ollama: 'Ollama', lmstudio: 'LM Studio', anthropic: 'Anthropic Claude', openai: 'OpenAI' };
+const KEY_HINTS = { ollama: null, lmstudio: null, anthropic: 'ANTHROPIC_API_KEY', openai: 'OPENAI_API_KEY' };
+// Local providers whose endpoint URL can be customized, with their defaults.
+const LOCAL_URL_DEFAULTS = { ollama: 'http://localhost:11434', lmstudio: 'http://localhost:1234' };
+const isLocal = (p) => Object.prototype.hasOwnProperty.call(LOCAL_URL_DEFAULTS, p);
 
 async function init() {
   const res = await fetch('/api/settings');
@@ -11,11 +16,42 @@ async function init() {
   currentProvider = s.provider;
   currentModel = s.model;
   keyStatus = s.key_status;
+  providerUrls = {
+    ollama: s.ollama_url || LOCAL_URL_DEFAULTS.ollama,
+    lmstudio: s.lmstudio_url || LOCAL_URL_DEFAULTS.lmstudio,
+  };
   const ps = document.getElementById('pageSize');
   if (ps && s.page_size) ps.value = s.page_size;
   renderProviders(s.providers);
+  updateBaseUrlField();
   await loadModels(currentProvider, currentModel);
   await loadEmailSettings();
+}
+
+function updateBaseUrlField() {
+  const wrap = document.getElementById('baseUrlField');
+  const input = document.getElementById('baseUrl');
+  if (!wrap) return;
+  if (isLocal(currentProvider)) {
+    wrap.style.display = '';
+    input.value = providerUrls[currentProvider] || '';
+    input.placeholder = LOCAL_URL_DEFAULTS[currentProvider];
+    document.getElementById('baseUrlLabel').textContent =
+      `${PROVIDER_LABELS[currentProvider]} server URL`;
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+function onBaseUrlInput() {
+  if (isLocal(currentProvider)) {
+    providerUrls[currentProvider] = document.getElementById('baseUrl').value.trim();
+  }
+}
+
+function reloadModels() {
+  onBaseUrlInput();
+  loadModels(currentProvider, currentModel);
 }
 
 async function savePageSize() {
@@ -96,6 +132,7 @@ function renderProviders(providers) {
 
 async function onProviderChange(provider) {
   currentProvider = provider;
+  updateBaseUrlField();
   await loadModels(provider, '');
 }
 
@@ -110,8 +147,13 @@ async function loadModels(provider, selectedModel) {
   txt.style.display = 'none';
   err.style.display = 'none';
 
+  let url = `/api/models?provider=${encodeURIComponent(provider)}`;
+  if (isLocal(provider) && providerUrls[provider]) {
+    url += `&url=${encodeURIComponent(providerUrls[provider])}`;
+  }
+
   try {
-    const res = await fetch(`/api/models?provider=${encodeURIComponent(provider)}`);
+    const res = await fetch(url);
     const data = await res.json();
     if (!res.ok) throw new Error((data.error || 'Failed to load models') + (data.hint ? ' — ' + data.hint : ''));
     const models = data.models || [];
@@ -139,11 +181,16 @@ function onModelInput() {
 
 async function saveSettings() {
   onModelInput();
+  onBaseUrlInput();
   if (!currentModel) { alert('Please select or enter a model.'); return; }
+  const body = { provider: currentProvider, model: currentModel };
+  // Persist both local URLs so each provider remembers its own endpoint.
+  if (providerUrls.ollama !== undefined) body.ollama_url = providerUrls.ollama;
+  if (providerUrls.lmstudio !== undefined) body.lmstudio_url = providerUrls.lmstudio;
   const res = await fetch('/api/settings', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ provider: currentProvider, model: currentModel }),
+    body: JSON.stringify(body),
   });
   if (res.ok) {
     const toast = document.getElementById('toast');

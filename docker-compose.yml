@@ -1,21 +1,24 @@
 # Production-ish run for a technical friend / beta user:
 #   cp .env.example .env   # then fill in any API keys
-#   docker compose up -d   # open http://localhost:8000
+#   docker compose up -d   # open http://localhost:8001
 services:
   app:
-    build: .
+    build:
+      context: .
+      args:
+        PORT: ${PORT}
     image: jobtra:latest
     container_name: jobtra
     env_file:
       - .env
     ports:
-      - "${PORT:-8000}:${PORT:-8000}"
+      - "${PORT}:${PORT}"
     volumes:
       - jobtra-data:/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c",
-             "import os,urllib.request;urllib.request.urlopen('http://localhost:%s/api/config' % os.getenv('PORT','8000'))"]
+             "import os,urllib.request;urllib.request.urlopen('http://localhost:%s/api/config' % os.getenv('PORT'))"]
       interval: 30s
       timeout: 5s
       retries: 3

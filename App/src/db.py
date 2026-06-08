@@ -10,7 +10,7 @@ from config import SECRET_KEY_PATH
 # Location of the SQLite file. Defaults to "jobs.db" in the working directory
 # (App/src) for local runs; override with DB_PATH to point at a mounted data
 # volume in container/deployment setups.
-DB_PATH = os.getenv("DB_PATH", "jobs.db")
+DB_PATH = os.getenv("DB_PATH", "db/jobs.db")
 
 _conn: Optional[sqlite3.Connection] = None
 
@@ -102,12 +102,21 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             sender         TEXT    DEFAULT '',
             received_at    TEXT    NOT NULL,
             body_text      TEXT    DEFAULT '',
+            direction      TEXT    NOT NULL DEFAULT 'incoming',
             relevance      TEXT    NOT NULL DEFAULT 'pending',
             processed_at   TEXT,
             linked_job_id  INTEGER REFERENCES jobs(id),
             llm_status     TEXT,
             llm_raw        TEXT,
             UNIQUE(account_id, uid)
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS city_coords (
+            city      TEXT    PRIMARY KEY,
+            lat       REAL,
+            lng       REAL,
+            cached_at TEXT    NOT NULL DEFAULT (datetime('now'))
         )
     """)
     _migrate(conn)
@@ -123,12 +132,17 @@ _DEFAULT_EMAIL_KEYWORDS = json.dumps([
 
 def _migrate(conn: sqlite3.Connection) -> None:
     cols = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)")}
-    for col in ("source_url", "source_text", "whatsapp", "telegram", "hours_per_week", "languages", "source_email_id", "job_type"):
+    for col in ("source_url", "source_text", "whatsapp", "telegram", "hours_per_week", "languages", "source_email_id", "job_type", "work_mode"):
         if col not in cols:
             conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT DEFAULT ''")
 
+    email_cols = {row["name"] for row in conn.execute("PRAGMA table_info(email_messages)")}
+    if "direction" not in email_cols:
+        conn.execute("ALTER TABLE email_messages ADD COLUMN direction TEXT NOT NULL DEFAULT 'incoming'")
+
     settings_cols = {row["name"] for row in conn.execute("PRAGMA table_info(settings)")}
-    for col in ("email_ollama_model", "email_sync_interval", "email_keywords", "fernet_key", "email_provider"):
+    for col in ("email_ollama_model", "email_sync_interval", "email_keywords", "fernet_key",
+                "email_provider", "ollama_url", "lmstudio_url"):
         if col not in settings_cols:
             conn.execute(f"ALTER TABLE settings ADD COLUMN {col} TEXT")
     # page size for the jobs/email lists; INTEGER with a default so existing rows backfill.
@@ -173,11 +187,11 @@ def create_job(data: dict) -> dict:
         INSERT INTO jobs (position, company, description, date_applied, status,
                           address, city, hr_email, hr_phone, skills,
                           whatsapp, telegram, hours_per_week, languages,
-                          source_url, source_text, job_type)
+                          source_url, source_text, job_type, work_mode)
         VALUES (:position, :company, :description, :date_applied, :status,
                 :address, :city, :hr_email, :hr_phone, :skills,
                 :whatsapp, :telegram, :hours_per_week, :languages,
-                :source_url, :source_text, :job_type)
+                :source_url, :source_text, :job_type, :work_mode)
         """,
         {**data, "skills": skills,
          "whatsapp": data.get("whatsapp", ""),
@@ -186,7 +200,8 @@ def create_job(data: dict) -> dict:
          "languages": data.get("languages", ""),
          "source_url": data.get("source_url", ""),
          "source_text": data.get("source_text", ""),
-         "job_type": data.get("job_type", "")},
+         "job_type": data.get("job_type", ""),
+         "work_mode": data.get("work_mode", "")},
     )
     conn.commit()
     return get_job(cursor.lastrowid)
@@ -215,6 +230,7 @@ def update_job(job_id: int, data: dict) -> Optional[dict]:
             source_url = :source_url,
             source_text = :source_text,
             job_type = :job_type,
+            work_mode = :work_mode,
             updated_at = datetime('now')
         WHERE id = :id
         """,
@@ -226,6 +242,7 @@ def update_job(job_id: int, data: dict) -> Optional[dict]:
          "source_url": data.get("source_url", ""),
          "source_text": data.get("source_text", ""),
          "job_type": data.get("job_type", ""),
+         "work_mode": data.get("work_mode", ""),
          "id": job_id},
     )
     conn.commit()
@@ -542,8 +559,8 @@ def create_email_message(data: dict) -> dict:
     conn = get_conn()
     cursor = conn.execute(
         """INSERT OR IGNORE INTO email_messages
-           (account_id, uid, subject, sender, received_at, body_text, relevance)
-           VALUES (:account_id, :uid, :subject, :sender, :received_at, :body_text, :relevance)""",
+           (account_id, uid, subject, sender, received_at, body_text, direction, relevance)
+           VALUES (:account_id, :uid, :subject, :sender, :received_at, :body_text, :direction, :relevance)""",
         {
             "account_id": data["account_id"],
             "uid": data["uid"],
@@ -551,6 +568,7 @@ def create_email_message(data: dict) -> dict:
             "sender": data.get("sender", ""),
             "received_at": data["received_at"],
             "body_text": data.get("body_text", ""),
+            "direction": data.get("direction", "incoming"),
             "relevance": data.get("relevance", "pending"),
         },
     )
@@ -592,6 +610,25 @@ def _normalize_company(name: str) -> tuple[str, list[str]]:
     s = re.sub(r"[^a-z0-9äöüß ]+", " ", (name or "").lower())
     tokens = [t for t in s.split() if t and t not in _COMPANY_STOPWORDS]
     return " ".join(tokens), tokens
+
+
+def find_job_by_hr_email(addr: str) -> Optional[dict]:
+    """Find the job whose hr_email matches `addr` (case-insensitive). Used to
+    auto-link emails we sent to a job's HR contact. Prefers active, recent jobs."""
+    addr = (addr or "").strip().lower()
+    if not addr:
+        return None
+    conn = get_conn()
+    rows = conn.execute(
+        """
+        SELECT * FROM jobs
+        WHERE TRIM(LOWER(hr_email)) = ?
+        ORDER BY (status IN ('rejected', 'rejected_after_interview', 'accepted')) ASC,
+                 date_applied DESC
+        """,
+        (addr,),
+    ).fetchall()
+    return _row_to_dict(rows[0]) if rows else None
 
 
 def find_matching_job(company: str, position: str) -> Optional[dict]:
@@ -639,7 +676,9 @@ def _classify_type(position: str, description: str, hours: str) -> str:
     if any(k in t for k in ("contract", "fixed-term", "temporary")) or \
             ("befristet" in t and "unbefristet" not in t):
         return "contract"
-    if any(k in t for k in ("part-time", "part time", "teilzeit", "minijob")):
+    if any(k in t for k in ("mini-job", "mini job", "minijob", "marginal employment", "geringfügig")):
+        return "mini-job"
+    if any(k in t for k in ("part-time", "part time", "teilzeit")):
         return "part-time"
     if any(k in t for k in ("full-time", "full time", "vollzeit", "permanent", "unbefristet")):
         return "full-time"
@@ -680,6 +719,11 @@ def get_dashboard_stats() -> dict:
         "GROUP BY position ORDER BY count DESC"
     ).fetchall()]
 
+    recent = [dict(r) for r in conn.execute(
+        "SELECT id, position, company, status, date_applied, city FROM jobs "
+        "ORDER BY date_applied DESC, id DESC LIMIT 6"
+    ).fetchall()]
+
     type_counts: dict[str, int] = {}
     for r in conn.execute("SELECT position, description, hours_per_week, job_type FROM jobs").fetchall():
         explicit = (r["job_type"] or "").strip()
@@ -700,7 +744,30 @@ def get_dashboard_stats() -> dict:
         "by_type": by_type,
         "by_city": by_city,
         "by_position": by_position,
+        "recent": recent,
     }
+
+
+def get_cached_city_coords(city: str) -> Optional[dict]:
+    """Return the cached row for a city (lat/lng may be None for a known miss),
+    or None if the city has never been geocoded."""
+    row = get_conn().execute(
+        "SELECT lat, lng FROM city_coords WHERE city = ?", (city,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def save_city_coords(city: str, lat: Optional[float], lng: Optional[float]) -> None:
+    """Upsert a geocoding result. Storing (None, None) negatively caches a miss
+    so we don't re-query an unresolvable city on every dashboard load."""
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO city_coords (city, lat, lng) VALUES (?, ?, ?) "
+        "ON CONFLICT(city) DO UPDATE SET lat = excluded.lat, lng = excluded.lng, "
+        "cached_at = datetime('now')",
+        (city, lat, lng),
+    )
+    conn.commit()
 
 
 def get_email_sync_status() -> dict:

@@ -37,6 +37,8 @@
     <div class="sidebar-bottom">
         <a class="side-link" href="/settings" title="Settings"><span
                 class="side-icon">⚙️</span><span class="side-text">Settings</span></a>
+        <button type="button" class="side-link" onclick="openAbout()" title="About"><span
+                class="side-icon">&#9432;</span><span class="side-text">About</span></button>
         <button class="btn-theme-side" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark theme">
             &#9790;
         </button>
@@ -119,6 +121,7 @@
                     <option value="">— Unspecified —</option>
                     <option value="full-time">Full-time</option>
                     <option value="part-time">Part-time</option>
+                    <option value="mini-job">Mini-job</option>
                     <option value="contract">Contract</option>
                     <option value="internship">Internship</option>
                     <option value="freelance">Freelance</option>
@@ -128,6 +131,15 @@
         <div class="form-row">
             <div class="field"><label>Languages</label><input type="text" id="f-languages"
                                                               placeholder="e.g. English, German"></div>
+            <div class="field">
+                <label>Work mode</label>
+                <select id="f-work_mode">
+                    <option value="">— Unspecified —</option>
+                    <option value="remote">Remote</option>
+                    <option value="hybrid">Hybrid</option>
+                    <option value="on-site">On-site</option>
+                </select>
+            </div>
         </div>
         <div class="field"><label>Skills (comma-separated)</label><input type="text" id="f-skills"
                                                                          placeholder="e.g. Python, FastAPI, PostgreSQL">

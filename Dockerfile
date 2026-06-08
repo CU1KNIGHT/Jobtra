@@ -7,6 +7,10 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# Port is sourced from .env (passed in as a build arg by docker compose); the
+# 8001 here is only a bootstrap default for a bare `docker build` with no arg.
+ARG PORT=8001
+
 # Install dependencies first so this layer is cached across code changes.
 COPY App/requirements.txt ./App/requirements.txt
 RUN pip install --no-cache-dir -r App/requirements.txt
@@ -24,12 +28,12 @@ ENV DB_PATH=/data/jobs.db \
     SECRET_KEY_PATH=/data/secret.key \
     DOCS_DIR=/data/docs \
     HOST=localhost \
-    PORT=8000
+    PORT=${PORT}
 VOLUME ["/data"]
 
 # Run from App/src so the app's bare imports (import db, from config import ...)
 # resolve, matching the local-dev layout.
 WORKDIR /app/App/src
-EXPOSE 8000
+EXPOSE ${PORT}
 
-CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT}"]

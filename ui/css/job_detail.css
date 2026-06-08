@@ -46,6 +46,26 @@
 .info-field.full { grid-column: 1 / -1; }
 .info-field pre { white-space: pre-wrap; font-family: inherit; font-size: 14px; word-break: break-word; }
 
+.edit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px 24px; }
+.edit-field { display: flex; flex-direction: column; }
+.edit-field.full { grid-column: 1 / -1; }
+.edit-field label {
+  font-size: 11px; font-weight: 600; color: var(--detail-label);
+  text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px;
+}
+.edit-field input, .edit-field select, .edit-field textarea {
+  width: 100%; padding: 7px 10px;
+  border: 1px solid var(--field-border); border-radius: 6px;
+  font-size: 14px; font-family: inherit;
+  background: var(--card); color: var(--fg);
+}
+.edit-field textarea { resize: vertical; line-height: 1.5; }
+.edit-field input:focus, .edit-field select:focus, .edit-field textarea:focus {
+  outline: none; border-color: #2563eb;
+}
+.edit-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.edit-error { flex: 1; color: #dc2626; font-size: 12px; }
+
 .status-select {
   padding: 5px 10px;
   border: 1px solid var(--field-border);
@@ -71,6 +91,22 @@ td { padding: 9px 14px; vertical-align: top; font-size: 13px; }
 .email-subject { font-weight: 600; word-break: break-word; }
 .email-sender  { color: var(--field-label); font-size: 12px; }
 .email-preview { color: var(--detail-label); font-size: 12px; margin-top: 2px; }
+.email-open { cursor: pointer; }
+.email-open:hover { color: #2563eb; text-decoration: underline; }
+
+.email-dialog { width: min(640px, 96vw); }
+.email-dialog .dialog-header { word-break: break-word; }
+.email-dialog-meta { display: grid; gap: 4px; padding-bottom: 8px; border-bottom: 1px solid var(--dialog-border); }
+.email-dialog-meta label { display: inline-block; width: 48px; color: var(--detail-label); font-size: 12px; }
+.email-dialog-meta span { font-size: 13px; word-break: break-word; }
+.email-dialog-body {
+  margin: 0; max-height: 60vh; overflow: auto;
+  white-space: pre-wrap; word-break: break-word;
+  font-family: inherit; font-size: 13px; line-height: 1.5; color: var(--fg);
+}
+
+.email-tag-sent { color: #6d28d9; font-weight: 600; white-space: nowrap; }
+[data-theme="dark"] .email-tag-sent { color: #c4b5fd; }
 
 .relevance-relevant   { color: #15803d; font-weight: 600; }
 .relevance-irrelevant { color: var(--detail-label); }

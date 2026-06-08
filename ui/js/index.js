@@ -219,6 +219,7 @@ function openAddDialog() {
   document.getElementById('f-telegram').value = '';
   document.getElementById('f-hours_per_week').value = '';
   document.getElementById('f-job_type').value = '';
+  document.getElementById('f-work_mode').value = '';
   document.getElementById('f-languages').value = '';
   document.getElementById('f-skills').value = '';
   hideError();
@@ -244,6 +245,7 @@ function openEditDialog(id) {
   document.getElementById('f-telegram').value = j.telegram || '';
   document.getElementById('f-hours_per_week').value = j.hours_per_week || '';
   document.getElementById('f-job_type').value = j.job_type || '';
+  document.getElementById('f-work_mode').value = j.work_mode || '';
   document.getElementById('f-languages').value = j.languages || '';
   document.getElementById('f-skills').value = j.skills;
   hideError();
@@ -282,6 +284,7 @@ async function saveJob() {
     telegram: document.getElementById('f-telegram').value.trim(),
     hours_per_week: document.getElementById('f-hours_per_week').value.trim(),
     job_type: document.getElementById('f-job_type').value,
+    work_mode: document.getElementById('f-work_mode').value,
     languages: document.getElementById('f-languages').value.trim(),
     skills: document.getElementById('f-skills').value.trim(),
     source_url: pendingSource.source_url,
@@ -423,7 +426,7 @@ async function openParseDialog() {
   try {
     const res = await fetch('/api/settings');
     const s = await res.json();
-    const providerLabel = { ollama: 'Ollama', anthropic: 'Anthropic', openai: 'OpenAI' }[s.provider] || s.provider;
+    const providerLabel = { ollama: 'Ollama', lmstudio: 'LM Studio', anthropic: 'Anthropic', openai: 'OpenAI' }[s.provider] || s.provider;
     info.innerHTML = `Using: <strong>${providerLabel} / ${esc(s.model)}</strong> &nbsp;<a href="#" style="color:#2563eb;font-size:12px" onclick="document.getElementById('parseDialog').close();openSettingsDialog();return false">Change…</a>`;
   } catch (_) {
     info.textContent = '';
@@ -523,6 +526,7 @@ function openAddDialogPrefilled(data) {
   document.getElementById('f-telegram').value = data.telegram || '';
   document.getElementById('f-hours_per_week').value = data.hours_per_week || '';
   document.getElementById('f-job_type').value = data.job_type || '';
+  document.getElementById('f-work_mode').value = data.work_mode || '';
   document.getElementById('f-languages').value = data.languages || '';
   document.getElementById('f-skills').value = data.skills || '';
   hideError();
@@ -533,7 +537,7 @@ function openAddDialogPrefilled(data) {
 let settingsProvider = 'ollama';
 let settingsModel = '';
 
-const PROVIDER_LABELS = { ollama: 'Ollama', anthropic: 'Anthropic Claude', openai: 'OpenAI' };
+const PROVIDER_LABELS = { ollama: 'Ollama', lmstudio: 'LM Studio', anthropic: 'Anthropic Claude', openai: 'OpenAI' };
 const KEY_HINTS = { anthropic: 'ANTHROPIC_API_KEY', openai: 'OPENAI_API_KEY' };
 
 async function openSettingsDialog() {

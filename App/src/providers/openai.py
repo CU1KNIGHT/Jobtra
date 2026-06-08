@@ -6,28 +6,40 @@ from .base import (
     ProviderAuthError, ProviderBadOutput, ProviderTimeout, ProviderUnavailable,
 )
 
-OPENAI_API_URL = "https://api.openai.com"
-
 
 class OpenAIProvider:
+    """OpenAI Chat Completions provider.
+
+    The request/response shape is the de-facto standard implemented by many
+    other services (OpenRouter, Groq, LM Studio, vLLM, …), so this class is also
+    the base for any OpenAI-compatible endpoint — subclasses just override the
+    base URL, label, API-key source, and model filter.
+    """
     name = "openai"
+    label = "OpenAI"
+    api_base = "https://api.openai.com"   # root; "/v1/..." is appended
+    api_key_env = "OPENAI_API_KEY"
+    model_prefix = "gpt-"                  # None = list every model unfiltered
 
     def _key(self) -> str:
-        key = os.getenv("OPENAI_API_KEY", "")
+        key = os.getenv(self.api_key_env, "")
         if not key:
-            raise ProviderAuthError("Missing OPENAI_API_KEY")
+            raise ProviderAuthError(f"Missing {self.api_key_env}")
         return key
 
+    def _headers(self) -> dict:
+        return {
+            "Authorization": f"Bearer {self._key()}",
+            "content-type": "application/json",
+        }
+
     async def parse(self, text: str, model: str) -> dict:
-        key = self._key()
+        headers = self._headers()
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 resp = await client.post(
-                    f"{OPENAI_API_URL}/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {key}",
-                        "content-type": "application/json",
-                    },
+                    f"{self.api_base}/v1/chat/completions",
+                    headers=headers,
                     json={
                         "model": model,
                         "response_format": {"type": "json_object"},
@@ -39,12 +51,12 @@ class OpenAIProvider:
                     },
                 )
         except httpx.TimeoutException:
-            raise ProviderTimeout("OpenAI API timed out")
+            raise ProviderTimeout(f"{self.label} API timed out")
         except httpx.ConnectError:
-            raise ProviderUnavailable("Cannot connect to OpenAI API")
+            raise ProviderUnavailable(f"Cannot connect to {self.label}")
 
         if resp.status_code in (401, 403):
-            raise ProviderAuthError("Invalid or missing OpenAI API key")
+            raise ProviderAuthError(f"Invalid or missing {self.label} API key")
 
         try:
             raw = resp.json()["choices"][0]["message"]["content"]
@@ -55,15 +67,12 @@ class OpenAIProvider:
         return normalize_result(parsed)
 
     async def complete(self, system: str, user: str, model: str) -> str:
-        key = self._key()
+        headers = self._headers()
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 resp = await client.post(
-                    f"{OPENAI_API_URL}/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {key}",
-                        "content-type": "application/json",
-                    },
+                    f"{self.api_base}/v1/chat/completions",
+                    headers=headers,
                     json={
                         "model": model,
                         "response_format": {"type": "json_object"},
@@ -75,37 +84,34 @@ class OpenAIProvider:
                     },
                 )
         except httpx.TimeoutException:
-            raise ProviderTimeout("OpenAI API timed out")
+            raise ProviderTimeout(f"{self.label} API timed out")
         except httpx.ConnectError:
-            raise ProviderUnavailable("Cannot connect to OpenAI API")
+            raise ProviderUnavailable(f"Cannot connect to {self.label}")
         if resp.status_code in (401, 403):
-            raise ProviderAuthError("Invalid or missing OpenAI API key")
+            raise ProviderAuthError(f"Invalid or missing {self.label} API key")
         try:
             return resp.json()["choices"][0]["message"]["content"]
         except (KeyError, IndexError, ValueError):
-            raise ProviderBadOutput("Unexpected response from OpenAI")
+            raise ProviderBadOutput(f"Unexpected response from {self.label}")
 
     async def list_models(self) -> list[str]:
-        key = self._key()
+        headers = self._headers()
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(
-                    f"{OPENAI_API_URL}/v1/models",
-                    headers={"Authorization": f"Bearer {key}"},
-                )
+                resp = await client.get(f"{self.api_base}/v1/models", headers=headers)
         except httpx.ConnectError:
-            raise ProviderUnavailable("Cannot reach OpenAI API")
+            raise ProviderUnavailable(f"Cannot reach {self.label}")
         except httpx.TimeoutException:
-            raise ProviderUnavailable("OpenAI API timed out")
+            raise ProviderUnavailable(f"{self.label} timed out")
 
         if resp.status_code in (401, 403):
-            raise ProviderAuthError("Invalid or missing OpenAI API key")
+            raise ProviderAuthError(f"Invalid or missing {self.label} API key")
 
         try:
-            models = resp.json().get("data", [])
-            return sorted(
-                [m["id"] for m in models if m.get("id", "").startswith("gpt-")],
-                reverse=True,
-            )
+            ids = [m["id"] for m in resp.json().get("data", []) if m.get("id")]
         except Exception:
-            raise ProviderBadOutput("Unexpected response from OpenAI")
+            raise ProviderBadOutput(f"Unexpected response from {self.label}")
+
+        if self.model_prefix:
+            ids = sorted([i for i in ids if i.startswith(self.model_prefix)], reverse=True)
+        return ids

@@ -1,11 +1,12 @@
 import email as email_lib
 import imaplib
 import json
+import re
 import threading
 from datetime import datetime, timezone
 from typing import Optional
 from email.header import decode_header
-from email.utils import parsedate_to_datetime
+from email.utils import parseaddr, parsedate_to_datetime
 from cryptography.fernet import Fernet
 
 import db
@@ -87,8 +88,129 @@ def is_relevant(subject: str, body: str, keywords=None) -> bool:
 
 # ── Sync ──────────────────────────────────────────────────────────────────────
 
+def _mailbox_name(list_line) -> str:
+    """Pull the mailbox name out of an IMAP LIST response line."""
+    line = list_line.decode(errors="replace") if isinstance(list_line, bytes) else str(list_line)
+    quoted = re.findall(r'"([^"]*)"', line)
+    if quoted:
+        return quoted[-1]
+    toks = line.split()
+    return toks[-1] if toks else ""
+
+
+def _quote_mailbox(name: str) -> str:
+    """Quote a mailbox name for SELECT when it contains spaces/specials."""
+    if name.startswith('"') and name.endswith('"'):
+        return name
+    return f'"{name}"' if (" " in name or "/" in name) else name
+
+
+def find_sent_mailbox(conn_imap) -> Optional[str]:
+    """Locate the account's Sent folder. Prefer the IMAP \\Sent special-use
+    flag; fall back to common provider names (Gmail, Outlook, Dovecot, …)."""
+    try:
+        status, boxes = conn_imap.list()
+        if status == "OK" and boxes:
+            for raw in boxes:
+                line = raw.decode(errors="replace") if isinstance(raw, bytes) else str(raw)
+                if "\\Sent" in line:
+                    name = _mailbox_name(raw)
+                    if name:
+                        return name
+    except Exception:
+        pass
+    for cand in ("Sent", "Sent Items", "Sent Mail", "[Gmail]/Sent Mail", "INBOX.Sent"):
+        try:
+            status, _ = conn_imap.select(_quote_mailbox(cand), readonly=True)
+            if status == "OK":
+                return cand
+        except Exception:
+            continue
+    return None
+
+
+def _sync_mailbox(conn_imap, account: dict, mailbox: str, direction: str, uid_prefix: str) -> int:
+    """Sync one IMAP mailbox into email_messages. `direction` is 'incoming' or
+    'outgoing'; for outgoing mail the stored `sender` holds the recipient (the
+    person we wrote to, e.g. a job's HR contact). Returns the new-message count."""
+    try:
+        status, _ = conn_imap.select(_quote_mailbox(mailbox), readonly=True)
+        if status != "OK":
+            return 0
+    except Exception:
+        return 0
+
+    last_sync = account.get("last_sync_at")
+    if last_sync:
+        try:
+            dt = datetime.fromisoformat(last_sync)
+            since_str = dt.strftime("%d-%b-%Y")
+            _, data = conn_imap.search(None, f"SINCE {since_str}")
+        except Exception:
+            _, data = conn_imap.search(None, "ALL")
+    else:
+        _, data = conn_imap.search(None, "ALL")
+
+    uid_list = data[0].split() if data[0] else []
+
+    # On the first ever sync cap to the 500 most-recent so we don't
+    # download an entire mailbox in one shot.
+    if not last_sync and len(uid_list) > 500:
+        uid_list = uid_list[-500:]
+
+    outgoing = direction == "outgoing"
+    new_count = 0
+
+    for uid_bytes in uid_list:
+        uid_str = uid_prefix + uid_bytes.decode()
+        if db.email_message_exists(account["id"], uid_str):
+            continue
+
+        _, msg_data = conn_imap.fetch(uid_bytes, "(BODY.PEEK[])")
+        if not msg_data or not msg_data[0]:
+            continue
+
+        raw_bytes = msg_data[0][1]
+        msg = email_lib.message_from_bytes(raw_bytes)
+
+        subject = _decode_header_str(msg.get("Subject", "") or "")
+        # For sent mail the meaningful party is the recipient, not ourselves.
+        counterparty = _decode_header_str(msg.get("To" if outgoing else "From", "") or "")
+        body = _extract_plaintext(msg)
+
+        date_str = msg.get("Date", "")
+        try:
+            received_at = parsedate_to_datetime(date_str).isoformat()
+        except Exception:
+            received_at = datetime.now(timezone.utc).isoformat()
+
+        created = db.create_email_message({
+            "account_id": account["id"],
+            "uid": uid_str,
+            "subject": subject[:500],
+            "sender": counterparty[:200],
+            "received_at": received_at,
+            "body_text": body[:12000],
+            "direction": direction,
+            # Sent mail isn't classified by the LLM; mark it relevant so it stays
+            # out of the pending queue while still showing up and being linkable.
+            "relevance": "relevant" if outgoing else "pending",
+        })
+
+        # Auto-link a sent email to the job whose HR address we wrote to.
+        if outgoing and created:
+            addr = parseaddr(counterparty)[1].lower()
+            job = db.find_job_by_hr_email(addr) if addr else None
+            if job:
+                db.update_email_message(created["id"], {"linked_job_id": job["id"]})
+
+        new_count += 1
+
+    return new_count
+
+
 def sync_account(account: dict) -> tuple[int, str]:
-    """Sync one IMAP account synchronously. Returns (new_count, error_or_empty)."""
+    """Sync one IMAP account (INBOX + Sent). Returns (new_count, error_or_empty)."""
     try:
         password = decrypt_password(account["password_enc"])
     except Exception as e:
@@ -101,59 +223,10 @@ def sync_account(account: dict) -> tuple[int, str]:
         return 0, f"Connection failed: {e}"
 
     try:
-        conn_imap.select("INBOX")
-        last_sync = account.get("last_sync_at")
-        if last_sync:
-            try:
-                dt = datetime.fromisoformat(last_sync)
-                since_str = dt.strftime("%d-%b-%Y")
-                _, data = conn_imap.search(None, f"SINCE {since_str}")
-            except Exception:
-                _, data = conn_imap.search(None, "ALL")
-        else:
-            _, data = conn_imap.search(None, "ALL")
-
-        uid_list = data[0].split() if data[0] else []
-
-        # On the first ever sync cap to the 500 most-recent so we don't
-        # download an entire inbox in one shot.
-        if not last_sync and len(uid_list) > 500:
-            uid_list = uid_list[-500:]
-
-        new_count = 0
-
-        for uid_bytes in uid_list:
-            uid_str = uid_bytes.decode()
-            if db.email_message_exists(account["id"], uid_str):
-                continue
-
-            _, msg_data = conn_imap.fetch(uid_bytes, "(RFC822)")
-            if not msg_data or not msg_data[0]:
-                continue
-
-            raw_bytes = msg_data[0][1]
-            msg = email_lib.message_from_bytes(raw_bytes)
-
-            subject = _decode_header_str(msg.get("Subject", "") or "")
-            sender = msg.get("From", "") or ""
-            body = _extract_plaintext(msg)
-
-            date_str = msg.get("Date", "")
-            try:
-                received_at = parsedate_to_datetime(date_str).isoformat()
-            except Exception:
-                received_at = datetime.now(timezone.utc).isoformat()
-
-            db.create_email_message({
-                "account_id": account["id"],
-                "uid": uid_str,
-                "subject": subject[:500],
-                "sender": sender[:200],
-                "received_at": received_at,
-                "body_text": body[:12000],
-                "relevance": "pending",
-            })
-            new_count += 1
+        new_count = _sync_mailbox(conn_imap, account, "INBOX", "incoming", "")
+        sent_mailbox = find_sent_mailbox(conn_imap)
+        if sent_mailbox:
+            new_count += _sync_mailbox(conn_imap, account, sent_mailbox, "outgoing", "sent-")
 
         conn_imap.logout()
         db.update_email_account_sync_time(account["id"])

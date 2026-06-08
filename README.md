@@ -43,10 +43,10 @@ pip install -r App/requirements.txt
 cd App/src
 uvicorn server:app --reload
 
-# 4. Open http://localhost:8000
+# 4. Open http://localhost:8001
 ```
 
-`jobs.db` is created automatically on first run. The API docs are at `http://localhost:8000/docs`.
+`jobs.db` is created automatically on first run. The API docs are at `http://localhost:8001/docs`.
 
 > **AI features are optional.** Everything except parsing/email-classification works without an LLM. For the AI features, either run [Ollama](https://ollama.com/) locally (no API key) or add an Anthropic/OpenAI key (see [Configuration](#configuration)).
 
@@ -67,7 +67,7 @@ Either the local venv flow above (`uvicorn server:app --reload` from `App/src`),
 ```bash
 cp .env.example .env
 docker compose up            # docker-compose.override.yml adds --reload + source bind-mount
-# open http://localhost:8000
+# open http://localhost:8001
 ```
 
 Code and UI edits reload automatically; no rebuild needed.
@@ -77,7 +77,7 @@ Code and UI edits reload automatically; no rebuild needed.
 ```bash
 cp .env.example .env         # fill in any API keys, optionally change HOST/PORT
 docker compose -f docker-compose.yml up -d --build
-# open http://localhost:8000
+# open http://localhost:8001
 ```
 
 `-f docker-compose.yml` skips the dev override (no reload, no source mount). All
@@ -110,7 +110,7 @@ Copy `.env.example` to `.env` (at the repo root for Docker, or `App/.env` for lo
 | Variable | Default | Description |
 | --- | --- | --- |
 | `HOST` | `localhost` | Address used in the browser and for the bookmarklet link. Set to your LAN IP/hostname for remote access. |
-| `PORT` | `8000` | Port the app is served on. |
+| `PORT` | `8001` | Port the app is served on. |
 | `ANTHROPIC_API_KEY` | — | Required only if you use the Anthropic provider. |
 | `OPENAI_API_KEY` | — | Required only if you use the OpenAI provider. |
 | `DB_PATH` | `jobs.db` | Path to the SQLite file. Set to a volume path (e.g. `/data/jobs.db`) for containers. |

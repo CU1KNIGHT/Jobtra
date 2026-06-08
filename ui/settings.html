@@ -29,6 +29,7 @@
 
   <div class="sidebar-bottom">
     <a class="side-link side-link-active" href="/settings" title="Settings"><span class="side-icon">⚙️</span><span class="side-text">Settings</span></a>
+    <button type="button" class="side-link" onclick="openAbout()" title="About"><span class="side-icon">&#9432;</span><span class="side-text">About</span></button>
     <button class="btn-theme-side" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark theme">☀️ &#9790;</button>
     <span id="app-version" class="sidebar-version"></span>
   </div>
@@ -46,6 +47,14 @@
 
   <div class="card">
     <h2>Model</h2>
+    <div class="field" id="baseUrlField" style="display:none">
+      <label id="baseUrlLabel">Server URL</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="baseUrl" placeholder="http://localhost:11434" style="flex:1" oninput="onBaseUrlInput()">
+        <button class="btn btn-secondary" type="button" onclick="reloadModels()">Reload models</button>
+      </div>
+      <p class="hint" id="baseUrlHint">Change this only if the server runs on a non-default host or port.</p>
+    </div>
     <div class="field">
       <label id="modelLabel">Model</label>
       <select id="modelSelect" onchange="onModelInput()"><option>Loading…</option></select>
@@ -82,6 +91,7 @@
       <select id="emailProvider">
         <option value="">Same as parser</option>
         <option value="ollama">Ollama</option>
+        <option value="lmstudio">LM Studio</option>
         <option value="anthropic">Anthropic Claude</option>
         <option value="openai">OpenAI</option>
       </select>
