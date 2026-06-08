@@ -15,66 +15,36 @@ No accounts, no cloud, no telemetry. Your data lives in a single SQLite file on 
 - **Application tracking** — CRUD over your applications with a six-stage pipeline: `open → applied → interview_done → rejected / rejected_after_interview → accepted`. Rich fields for company, position, city/address, HR email/phone, WhatsApp/Telegram, hours per week, languages, skills, and job type.
 - **AI job parsing** — Paste a posting or drop in a URL and an LLM fills in the fields for you. Re-parse any saved job to refresh details from its original source.
 - **One-click bookmarklet** — Save the job you're viewing in your browser straight to the tracker, no copy-paste.
-- **Dashboard analytics** — Totals, active pipeline, interview count, rejection rate, and breakdowns by month, status, job type, city, and position.
+- **Dashboard analytics** — Totals, active pipeline, interview count, rejection rate, and breakdowns by month, status, job type, city, and position, plus an interactive map of where you've applied (cities geocoded via OpenStreetMap) and a treemap view.
 - **Document manager** — Upload résumés/cover letters, attach them to applications, and see where each is used. Files are de-duplicated by content hash.
 - **Email sync & classification** — Connect IMAP mailboxes, sync messages, and have the LLM flag which are job-related and what they mean (rejection, interview invite, offer, …). Relevant emails auto-link to the matching application and can advance its status. Account passwords are encrypted at rest (Fernet); sync runs on a configurable schedule.
 - **Import / export** — Bulk-import jobs from CSV or JSON (tolerant of column aliases and other tools' status vocabularies, with duplicate detection), and export your list back to CSV.
 - **Pagination** — Jobs and emails page automatically once they exceed a per-page limit you set in Settings.
-- **Dark / light theme** and a responsive, dependency-free UI.
+- **Dark / light theme** and a responsive UI with no build step.
 
 ## Tech stack
 
 - **Backend:** Python 3.9+, [FastAPI](https://fastapi.tiangolo.com/), Uvicorn
 - **Storage:** SQLite (single file), [cryptography](https://cryptography.io/) (Fernet) for email-password encryption
-- **Frontend:** Plain HTML/CSS/JavaScript (no build step, no framework)
-- **LLM providers:** [Ollama](https://ollama.com/) (local, default), Anthropic, or OpenAI
+- **Frontend:** Plain HTML/CSS/JavaScript, no build step or framework ([Chart.js](https://www.chartjs.org/) and [Leaflet](https://leafletjs.com/) are loaded from a CDN for charts and the map)
+- **LLM providers:** [Ollama](https://ollama.com/) (local, default), [LM Studio](https://lmstudio.ai/) (local), Anthropic, or OpenAI
 
 ## Quick start
 
-```bash
-# 1. Clone
-git clone https://github.com/CU1KNIGHT/Jobtra.git
-cd Jobtra
+The easiest way to run Jobtra — no terminal knowledge needed. After cloning (or downloading) the project:
 
-# 2. Create a virtual environment and install deps
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r App/requirements.txt
+- **macOS / Linux:** double-click `install-and-run.sh`, or run `./install-and-run.sh`
+- **Windows:** double-click `run-windows.bat`
 
-# 3. Run
-cd App/src
-uvicorn server:app --reload
+The first run creates a local Python environment, installs dependencies, starts the server, and opens <http://localhost:8001> in your browser. Later runs just start the app. Close the window (or press Ctrl+C) to stop it.
 
-# 4. Open http://localhost:8001
-```
+`jobs.db` is created automatically on first run, and the API docs live at `http://localhost:8001/docs`.
 
-`jobs.db` is created automatically on first run. The API docs are at `http://localhost:8001/docs`.
+> **AI features are optional.** Everything except job parsing and email classification works without an LLM. For those, run [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/) locally (no API key) or add an Anthropic/OpenAI key — see [Configuration](#configuration).
 
-> **AI features are optional.** Everything except parsing/email-classification works without an LLM. For the AI features, either run [Ollama](https://ollama.com/) locally (no API key) or add an Anthropic/OpenAI key (see [Configuration](#configuration)).
+## Other ways to run
 
-## Deployment
-
-Pick the path that matches who's running it:
-
-| Audience           | Approach |
-|--------------------| --- |
-| Dev                | `uvicorn --reload`, or the Docker Compose dev config |
-| Technical user     | Docker Compose + `.env` |
-| Non-technical user | Installer script + double-click launcher |
-
-### 1. Dev
-
-Either the local venv flow above (`uvicorn server:app --reload` from `App/src`), or run it in Docker with live reload:
-
-```bash
-cp .env.example .env
-docker compose up            # docker-compose.override.yml adds --reload + source bind-mount
-# open http://localhost:8001
-```
-
-Code and UI edits reload automatically; no rebuild needed.
-
-### 2. Technical user (Docker Compose)
+### Docker
 
 ```bash
 cp .env.example .env         # fill in any API keys, optionally change HOST/PORT
@@ -82,28 +52,24 @@ docker compose -f docker-compose.yml up -d --build
 # open http://localhost:8001
 ```
 
-`-f docker-compose.yml` skips the dev override (no reload, no source mount). All
-state (`jobs.db`, encryption key, uploaded docs) lives on the named volume
-`jobtra-data` and survives rebuilds. Set `HOST` in `.env` to your LAN
-IP/hostname so the bookmarklet link points at the right address.
-
-Back up the volume:
+All state (`jobs.db`, encryption key, uploaded docs) lives on the named volume `jobtra-data` and survives rebuilds. Set `HOST` in `.env` to your LAN IP/hostname so the bookmarklet link points at the right address. Back up the volume with:
 
 ```bash
 docker run --rm -v jobtra-data:/data -v "$PWD":/backup busybox \
   tar czf /backup/jobtra-data.tgz /data
 ```
 
-### 3. Non-technical user (installer + launcher)
+For development with live reload, run `docker compose up` instead (the `docker-compose.override.yml` overlay adds `--reload` and a source bind-mount).
 
-No terminal needed once the project folder is shared:
+### Manual (Python venv)
 
-- **macOS / Linux:** double-click `start-jobtra.command`
-- **Windows:** double-click `start-jobtra.bat`
-
-On first launch the launcher runs the installer (`install.sh` / `install.bat`),
-which creates a local `.venv`, installs dependencies, then starts the server and
-opens it in the default browser. Closing the window (or Ctrl+C) stops the app.
+```bash
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r App/requirements.txt
+uvicorn server:app --reload --app-dir App/src
+# open http://localhost:8001
+```
 
 ## Configuration
 
@@ -126,6 +92,7 @@ Provider, model, email settings, per-page limit, and email keywords are configur
 Choose a provider and model under **Settings**:
 
 - **Ollama** (default) — fully local, no key required. Start it with `ollama serve` and pull a model (e.g. `ollama pull llama3.1:8b`).
+- **LM Studio** — fully local, no key required. Start its local server (Developer tab → Start Server, default port `1234`) and load a model.
 - **Anthropic** — set `ANTHROPIC_API_KEY`.
 - **OpenAI** — set `OPENAI_API_KEY`.
 
@@ -154,16 +121,18 @@ The **Settings** page has a bookmarklet you can drag to your bookmarks bar. Clic
 │   │   ├── util.py               # Pydantic models, validators
 │   │   ├── parse.py / parser.py  # LLM job-posting parsing
 │   │   ├── fetcher.py            # URL → text
+│   │   ├── geocode.py            # city → lat/lng via Nominatim (cached)
 │   │   ├── email_sync.py         # IMAP sync + email classification
-│   │   ├── providers/            # ollama / anthropic / openai adapters
+│   │   ├── providers/            # ollama / lmstudio / anthropic / openai adapters
 │   │   └── routers/              # navigation + /api/* endpoints
 │   └── tests/                    # pytest suite
 ├── ui/                           # HTML/CSS/JS frontend (served at /static)
 ├── Dockerfile
 ├── docker-compose.yml            # production-ish run
 ├── docker-compose.override.yml   # dev overlay (reload + bind-mount)
-├── install.sh / install.bat      # one-time installers
-├── start-jobtra.command/.bat# double-click launchers
+├── install-and-run.sh            # macOS/Linux install & run launcher
+├── run-windows.bat               # Windows install & run launcher
+├── install.sh / install.bat      # standalone one-time installers
 └── VERSION
 ```
 
@@ -217,7 +186,7 @@ The frontend has no build step — edit files under `ui/` and reload. Static ass
 
 - All data is stored locally in SQLite (`jobs.db`) plus uploaded files under `DOCS_DIR`. **Back up by copying these; reset by deleting `jobs.db`.**
 - Email-account passwords are encrypted at rest with a Fernet key kept in a separate file (`SECRET_KEY_PATH`) so the key never sits inside the database it protects. **Keep that key safe — losing it makes stored passwords unrecoverable; leaking it defeats the encryption.**
-- The app makes outbound network calls only to: your configured LLM provider (for parsing/classification), your IMAP server (for email sync), and URLs you explicitly paste for parsing. There is no telemetry.
+- The app makes outbound network calls only to: your configured LLM provider (for parsing/classification), your IMAP server (for email sync), URLs you explicitly paste for parsing, and OpenStreetMap's Nominatim service (to geocode application cities for the dashboard map, queried once per new city and cached). There is no telemetry.
 
 ## Contributing
 
