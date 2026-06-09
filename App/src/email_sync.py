@@ -292,7 +292,7 @@ async def process_email_with_llm(msg: dict, model: str, provider_name: str = "ol
 
 STATUS_MAP = {
     "rejection": "rejected",
-    "interview_invite": "interview_done",
+    "interview_invite": "interview_invite",
     "application_received": "applied",
 }
 

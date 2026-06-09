@@ -10,6 +10,7 @@ let currentPage = 1;
 const STATUS_LABELS = {
   open: 'Open',
   applied: 'Applied',
+  interview_invite: 'Interview invite',
   interview_done: 'Interview done',
   rejected: 'Rejected',
   rejected_after_interview: 'Rejected after interview',

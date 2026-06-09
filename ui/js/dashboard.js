@@ -3,18 +3,18 @@ const charts = {};
 let dashMap = null;
 let mapResizeObserver = null;
 
-const STATUS_ORDER = ['applied', 'interview_done', 'rejected', 'accepted', 'open'];
+const STATUS_ORDER = ['applied', 'interview_invite', 'interview_done', 'rejected', 'accepted', 'open'];
 const STATUS_LABEL = {
-  applied: 'Applied', interview_done: 'Interview done',
+  applied: 'Applied', interview_invite: 'Interview invite', interview_done: 'Interview done',
   rejected: 'Rejected', accepted: 'Accepted', open: 'Open',
 };
 const STATUS_COLOR = {
-  applied: '#3b82f6', interview_done: '#8b5cf6',
+  applied: '#3b82f6', interview_invite: '#f59e0b', interview_done: '#8b5cf6',
   rejected: '#ef4444', accepted: '#22c55e', open: '#9ca3af',
 };
 const PURPLE_RAMP = ['#6d28d9', '#7c3aed', '#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe'];
 const FULL_STATUS_LABEL = {
-  open: 'Open', applied: 'Applied', interview_done: 'Interview done',
+  open: 'Open', applied: 'Applied', interview_invite: 'Interview invite', interview_done: 'Interview done',
   rejected: 'Rejected', rejected_after_interview: 'Rejected after interview', accepted: 'Accepted',
 };
 

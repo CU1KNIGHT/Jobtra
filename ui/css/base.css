@@ -335,6 +335,7 @@ dialog::backdrop { background: rgba(0,0,0,.4); }
 }
 .pill-open              { background: #e5e5e5;  color: #555; }
 .pill-applied           { background: #dbeafe;  color: #1d4ed8; }
+.pill-interview_invite  { background: #fef3c7;  color: #b45309; }
 .pill-interview_done    { background: #ede9fe;  color: #6d28d9; }
 .pill-rejected          { background: #fee2e2;  color: #dc2626; }
 .pill-rejected_after_interview { background: #fce7f3; color: #9d174d; }
@@ -342,6 +343,7 @@ dialog::backdrop { background: rgba(0,0,0,.4); }
 
 [data-theme="dark"] .pill-open              { background: #374151; color: #9ca3af; }
 [data-theme="dark"] .pill-applied           { background: #1e3a5f; color: #93c5fd; }
+[data-theme="dark"] .pill-interview_invite  { background: #422006; color: #fcd34d; }
 [data-theme="dark"] .pill-interview_done    { background: #2e1f5e; color: #c4b5fd; }
 [data-theme="dark"] .pill-rejected          { background: #4c1d1d; color: #fca5a5; }
 [data-theme="dark"] .pill-rejected_after_interview { background: #4c1d3a; color: #f9a8d4; }

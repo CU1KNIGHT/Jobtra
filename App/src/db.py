@@ -47,7 +47,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             source_text   TEXT    DEFAULT '',
             created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
             updated_at    TEXT    NOT NULL DEFAULT (datetime('now')),
-            CHECK (status IN ('open','applied','interview_done','rejected','rejected_after_interview','accepted'))
+            CHECK (status IN ('open','applied','interview_invite','interview_done','rejected','rejected_after_interview','accepted'))
         )
     """)
     conn.execute("""
@@ -148,6 +148,32 @@ def _migrate(conn: sqlite3.Connection) -> None:
     # page size for the jobs/email lists; INTEGER with a default so existing rows backfill.
     if "page_size" not in settings_cols:
         conn.execute("ALTER TABLE settings ADD COLUMN page_size INTEGER NOT NULL DEFAULT 25")
+
+    # The status CHECK constraint can't be altered in place, so databases
+    # created before a status was added need the jobs table rebuilt. Reuse the
+    # existing definition (which may carry migration-added columns) and only
+    # swap the table name and the status list.
+    jobs_sql_row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='jobs'"
+    ).fetchone()
+    if jobs_sql_row and "'interview_done'" in jobs_sql_row["sql"] \
+            and "'interview_invite'" not in jobs_sql_row["sql"]:
+        cols = ", ".join(row["name"] for row in conn.execute("PRAGMA table_info(jobs)"))
+        new_sql = re.sub(
+            r"CREATE TABLE( IF NOT EXISTS)? jobs\b",
+            r"CREATE TABLE\1 jobs_new",
+            jobs_sql_row["sql"],
+            count=1,
+        ).replace("'interview_done'", "'interview_invite','interview_done'")
+        conn.commit()  # close any open implicit transaction so the PRAGMA applies
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.execute("BEGIN")
+        conn.execute(new_sql)
+        conn.execute(f"INSERT INTO jobs_new ({cols}) SELECT {cols} FROM jobs")
+        conn.execute("DROP TABLE jobs")
+        conn.execute("ALTER TABLE jobs_new RENAME TO jobs")
+        conn.commit()
+        conn.execute("PRAGMA foreign_keys = ON")
 
     # Remove orphaned document links left behind by job deletions that
     # happened while foreign-key enforcement was off (so ON DELETE CASCADE
@@ -697,8 +723,8 @@ def get_dashboard_stats() -> dict:
         return conn.execute(f"SELECT COUNT(*) AS c FROM jobs{clause}", params).fetchone()["c"]
 
     total = _count()
-    active = _count("status IN ('open','applied')")
-    interviews = _count("status = 'interview_done'")
+    active = _count("status IN ('open','applied','interview_invite')")
+    interviews = _count("status IN ('interview_invite','interview_done')")
     rejected = _count("status IN ('rejected','rejected_after_interview')")
     rejection_rate = round(rejected / total, 2) if total else 0.0
 

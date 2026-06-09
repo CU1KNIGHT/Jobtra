@@ -6,7 +6,7 @@ let pendingFile = null;
 let emailMessages = [];
 
 const STATUS_LABELS = {
-  open: 'Open', applied: 'Applied', interview_done: 'Interview done',
+  open: 'Open', applied: 'Applied', interview_invite: 'Interview invite', interview_done: 'Interview done',
   rejected: 'Rejected', rejected_after_interview: 'Rejected after interview', accepted: 'Accepted',
 };
 
